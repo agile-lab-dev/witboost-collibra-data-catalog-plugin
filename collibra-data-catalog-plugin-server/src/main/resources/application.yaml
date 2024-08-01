@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: collibra-data-catalog-plugin
+
+server:
+  port: 8888
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+logging:
+  level:
+    it.agilelab.witboost.datacatalogplugin: DEBUG
+
+collibra:
+  dataProductTypeId: ""
+  statusId: ""
+  communityId: ""
+  domainTypeId: ""
+  descriptionAttributeTypeId: ""
+  columnTypeId: ""
+  relationTypeId: ""
+
+api:
+  username: ${COLLIBRA_USERNAME}
+  password: ${COLLIBRA_PASSWORD}
+  basePath: ${COLLIBRA_HOST}
+
