@@ -1,0 +1,419 @@
+openapi: 3.0.3
+info:
+  title: Data Catalog Plugin
+  description: 'This microservice is responsible for provisioning and unprovisioning metadata in  Data Catalog'
+  version: '2.2.0'
+servers:
+  - url: /
+tags:
+  - name: DataCatalogPlugin
+    description: Microservice for provisioning and unprovisioning metadata in Data Catalog
+    externalDocs:
+      description: Find out more
+      url: http://swagger.io
+paths:
+  /v2/validate:
+    post:
+      tags:
+        - DataCatalogPlugin
+      summary: >
+        Formally validate the provisioning request for the output ports metadata.
+        In details, validates the format and the existence of glossary terms
+        and of classification tags
+      operationId: asyncValidate
+      requestBody:
+        description: Details of a provisioning request to be validated
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+        required: true
+      responses:
+        202:
+          description: It returns a token that can be used for polling the async validation operation status and results
+          content:
+            application/json:
+              schema:
+                type: string
+        400:
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestValidationError"
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+  /v2/validate/{token}/status:
+    get:
+      tags:
+        - DataCatalogPlugin
+      summary: Get status and results of an async validation operation
+      operationId: getValidationStatus
+      parameters:
+        - name: token
+          in: path
+          description: token that identifies the request
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: The request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationStatus"
+        400:
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestValidationError"
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemError"
+  /v1/validate:
+    post:
+      tags:
+        - DataCatalogPlugin
+      summary: Validate a provisioning request
+      operationId: validate
+      requestBody:
+        description: Details of a provisioning request to be validated
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisioningRequest"
+        required: true
+      responses:
+        200:
+          description: It synchronously returns a specific reply containing the validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResult"
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemError"
+  /v1/provision:
+    post:
+      tags:
+        - DataCatalogPlugin
+      summary: Provisioning of metadata in Data Catalog from input descriptor
+      operationId: provision
+      requestBody:
+        description: A Data Product descriptor, enriched with components' provisioning results, wrapped as a string into a simple object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+        required: true
+      responses:
+        200:
+          description: Returns the result of the provisioned Data Catalog entities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+        202:
+          description: If successful returns a provisioning deployment task token that can be used for polling the request status
+          content:
+            application/json:
+              schema:
+                type: string
+        400:
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+  /v1/provision/{token}/status:
+    get:
+      tags:
+        - DataCatalogPlugin
+      summary: Get the status for a provisioning request
+      operationId: getStatus
+      parameters:
+        - name: token
+          in: path
+          description: token that identifies the request
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: The request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisioningStatus"
+        400:
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+        501:
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+  /v1/unprovision:
+    post:
+      tags:
+        - DataCatalogPlugin
+      summary: Unprovisioning of metadata in Data Catalog from input descriptor
+      operationId: unprovision
+      requestBody:
+        description: A data product descriptor and the provisioning results wrapped as simple object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+        required: true
+      responses:
+        200:
+          description: Returns an "OK" result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+        202:
+          description: If successful returns a provisioning deployment task token that can be used for polling the request status
+          content:
+            application/json:
+              schema:
+                type: string
+        400:
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+  /v1/entity/reference:
+    get:
+      tags:
+        - DataCatalogPlugin
+      summary: Returns references (id, links, etc) to the data catalog entity that refers to the provided output port id
+      operationId: getEntityReference
+      parameters:
+        - name: componentId
+          in: query
+          description: the id of the output port
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Info related to the referenced data catalog entity, wrapped as a json into "reference" field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityReference'
+        500:
+          description: System problem
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+components:
+  schemas:
+    ValidationStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ RUNNING, COMPLETED, FAILED ]
+          description: >
+            - `RUNNING`: the validation task is still running
+            
+            - `COMPLETED`: the operation is complete and the validation result is available (`info.publicInfo` field)
+            
+            - `FAILED`: an exception occurred while running the validation task
+        info:
+          $ref: "#/components/schemas/ValidationInfo"
+    ValidationResult:
+      description: Result of a validation operation on a provided descriptor
+      required:
+        - valid
+      type: object
+      properties:
+        valid:
+          description: Whether the provided descriptor is valid or not
+          type: boolean
+        error:
+          $ref: '#/components/schemas/ValidationError'
+    ValidationError:
+      description: Validation error related to a provided descriptor
+      required:
+        - errors
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: string
+    DescriptorKind:
+      type: string
+      enum: [ DATAPRODUCT_DESCRIPTOR, DATAPRODUCT_DESCRIPTOR_WITH_RESULTS ]
+    ProvisioningRequest:
+      required:
+        - descriptorKind
+        - descriptor
+      type: object
+      properties:
+        descriptorKind:
+          $ref: '#/components/schemas/DescriptorKind'
+        descriptor:
+          type: string
+          description: A provisioning request in yaml format
+    ProvisioningStatus:
+      required:
+        - status
+        - result
+      properties:
+        status:
+          type: string
+          enum: [ RUNNING, COMPLETED, FAILED ]
+        result:
+          deprecated: true
+          type: string
+        info:
+          $ref: "#/components/schemas/Info"
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Log'
+    RequestValidationError:
+      required:
+        - errors
+      type: object
+      properties:
+        errors:
+          type: array
+          deprecated: true
+          items:
+            type: string
+        userMessage:
+          type: string
+          description: User-readable message to be displayed
+        input:
+          type: string
+          description: Optional field to include the file or descriptor that raised the error
+        inputErrorField:
+          type: string
+          description: Optional field to include the field path (in dot format) that raised the error
+        moreInfo:
+          $ref: "#/components/schemas/ErrorMoreInfo"
+    SystemError:
+      required:
+        - error
+      type: object
+      properties:
+        error:
+          type: string
+          deprecated: true
+        userMessage:
+          type: string
+          description: User-readable message to be displayed
+        input:
+          type: string
+          description: Optional field to include the file or descriptor that raised the error
+        inputErrorField:
+          type: string
+          description: Optional field to include the field path (in dot format) that raised the error
+        moreInfo:
+          $ref: "#/components/schemas/ErrorMoreInfo"
+    ErrorMoreInfo:
+      required:
+        - problems
+        - solutions
+      type: object
+      description: Object that will include the more in-depth, specific information about the error
+      properties:
+        problems:
+          type: array
+          description: "Array of possible multiple problems: i.e. multiple validations failed"
+          items:
+            type: string
+        solutions:
+          type: array
+          description: Array of possible solutions that the developer gives to the user to solve the issue
+          items:
+            type: string
+    EntityReference:
+      required:
+        - reference
+      properties:
+        reference:
+          type: string
+    Info:
+      type: object
+      required:
+        - publicInfo
+        - privateInfo
+      properties:
+        publicInfo:
+          type: object
+          description: >
+            Fields to display in the Marketplace UI.
+            Note that only the values compliant to specific structures will be rendered in the "Technical Information" card of the Marketplace pages. [Check the documentation](https://docs.internal.witboost.agilelab.it/docs/p2_arch/p6_other_modules/p6_4_dataCatalog.md) for additional details
+        privateInfo:
+          type: object
+          description: "All the values in this object will be stored in the deployed descriptor, but will not be shown in the Marketplace UI"
+    ValidationInfo:
+      type: object
+      required:
+        - publicInfo
+      properties:
+        publicInfo:
+          $ref: "#/components/schemas/ValidationResult"
+    Log:
+      type: object
+      required:
+        - timestamp
+        - level
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          description: This is the severity level of the log
+          type: string
+          enum: [ DEBUG, INFO, WARNING , ERROR ]
+        message:
+          type: string
+        phase:
+          type: string
