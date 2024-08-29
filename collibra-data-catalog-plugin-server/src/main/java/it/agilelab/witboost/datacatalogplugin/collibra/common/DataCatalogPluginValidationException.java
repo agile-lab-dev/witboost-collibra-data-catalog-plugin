@@ -3,8 +3,8 @@ package it.agilelab.witboost.datacatalogplugin.collibra.common;
 public class DataCatalogPluginValidationException extends RuntimeException {
     private final FailedOperation failedOperation;
 
-    public DataCatalogPluginValidationException(FailedOperation failedOperation) {
-        super();
+    public DataCatalogPluginValidationException(String message, FailedOperation failedOperation) {
+        super(message);
         this.failedOperation = failedOperation;
     }
 

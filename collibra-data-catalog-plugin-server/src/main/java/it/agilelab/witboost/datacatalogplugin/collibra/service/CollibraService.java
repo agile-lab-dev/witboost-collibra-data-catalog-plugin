@@ -1,18 +1,26 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.service;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.CollibraAPIConfig;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.DataCatalogPluginValidationException;
+import io.vavr.Tuple2;
+import io.vavr.control.Option;
+import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Asset;
+import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Domain;
+import it.agilelab.witboost.datacatalogplugin.collibra.common.*;
+import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.BusinessTerm;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.CustomUrlPickerRequest;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.*;
+import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerItem;
+import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerResourcesRequestBody;
 import it.agilelab.witboost.datacatalogplugin.collibra.parser.Parser;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
-public class CollibraService implements DatacatalogService {
+public class CollibraService implements DataCatalogService, BusinessTermService {
 
     private static final String STORAGE_KIND = "storage";
     private static final String OUTPUTPORT_KIND = "outputport";
@@ -46,34 +54,187 @@ public class CollibraService implements DatacatalogService {
 
         if (eitherDataProduct.isLeft()) {
             logger.error("Unable to parse descriptor; error: {}", eitherDataProduct.getLeft());
-            throw new DataCatalogPluginValidationException(eitherDataProduct.getLeft());
+            throw new DataCatalogPluginValidationException(
+                    "Error while validating data product descriptor. See error details for more information",
+                    eitherDataProduct.getLeft());
         }
 
         var dataProduct = eitherDataProduct.get();
 
-        var asset = collibraApiClient.upsertDataProduct(dataProduct);
+        try {
+            var asset = collibraApiClient.upsertDataProduct(dataProduct);
 
-        var outputPorts = collibraApiClient.extractOutputPorts(dataProduct);
+            var outputPorts = collibraApiClient.extractOutputPorts(dataProduct);
 
-        var collibraLink = Map.of(
+            var collibraLink = createDataProductPublicInfo(asset);
+            var publicInfo = new HashMap<String, Map<String, Map<String, String>>>();
+            outputPorts.forEach(op -> publicInfo.put(op.getId(), collibraLink));
+
+            var provisioningStatus = new ProvisioningStatus(
+                            ProvisioningStatus.StatusEnum.COMPLETED, "Provisioned asset: " + asset)
+                    .info(new Info(publicInfo, JsonNodeFactory.instance.objectNode()));
+
+            return provisioningStatus;
+        } catch (Exception ex) {
+            logger.error("Error while provisioning", ex);
+            throw new DataCatalogPluginProvisioningException(
+                    "Error while provisioning data product on Collibra catalog. See error details for more information",
+                    new FailedOperation(Collections.singletonList(
+                            new Problem("Error while provisioning data product on Collibra catalog", ex))));
+        }
+    }
+
+    private Map<String, Map<String, String>> createDataProductPublicInfo(Asset asset) {
+        var trimmedBasePath = collibraAPIConfig.endpoint().endsWith("/")
+                ? collibraAPIConfig
+                        .endpoint()
+                        .substring(0, collibraAPIConfig.endpoint().length() - 1)
+                : collibraAPIConfig.endpoint();
+
+        return Map.of(
                 "collibra",
                 Map.of(
                         "type", "string",
                         "label", "Data Catalog",
                         "value", "View on Collibra",
-                        "href", collibraAPIConfig.basePath() + "/asset/" + asset.getId()));
-        var publicInfo = new HashMap<String, Map<String, Map<String, String>>>();
-        outputPorts.forEach(op -> publicInfo.put(op.getId(), collibraLink));
-
-        var provisioningStatus = new ProvisioningStatus(
-                        ProvisioningStatus.StatusEnum.COMPLETED, "Provisioned asset: " + asset)
-                .info(new Info(publicInfo, JsonNodeFactory.instance.objectNode()));
-
-        return provisioningStatus;
+                        "href", trimmedBasePath + "/asset/" + asset.getId()));
     }
 
     public ProvisioningStatus unprovision(ProvisioningRequest provisioningRequest) {
         // TODO implement
         return new ProvisioningStatus(ProvisioningStatus.StatusEnum.COMPLETED, "");
+    }
+
+    @Override
+    public List<BusinessTerm> getBusinessTerms(CustomUrlPickerRequest request) {
+        logger.info("Retrieving business terms from Collibra based on Request: {}", request);
+        Optional<Domain> domain = Optional.empty();
+        Optional<String> optionalDomainRequest =
+                request.queryParameters().toJavaOptional().flatMap(CustomURLPickerResourcesRequestBody::getDomain);
+        if (optionalDomainRequest.isPresent()) {
+            logger.info(
+                    "Domain is present as part of request body. Querying Collibra for domain '{}'",
+                    optionalDomainRequest.get());
+
+            try {
+                domain = collibraApiClient.findDomainByName(optionalDomainRequest.get());
+            } catch (Exception ex) {
+                throw new BusinessTermsPickerRetrieveException(
+                        String.format(
+                                "Error while fetching Collibra domain '%s'. See error details for more information",
+                                optionalDomainRequest.get()),
+                        new FailedOperation(Collections.singletonList(new Problem(
+                                String.format(
+                                        "Error while fetching Collibra domain '%s'. Collibra environment answered with an error",
+                                        optionalDomainRequest.get()),
+                                ex))));
+            }
+
+            logger.info(
+                    "Domain request: {}, domain found: {}",
+                    request.queryParameters().toJavaOptional().flatMap(CustomURLPickerResourcesRequestBody::getDomain),
+                    domain.isPresent());
+            logger.debug(
+                    "Domain request: {}, domain found: {}",
+                    request.queryParameters().toJavaOptional().flatMap(CustomURLPickerResourcesRequestBody::getDomain),
+                    domain);
+
+            if (domain.isEmpty()) {
+                String errorMessage = String.format(
+                        "Couldn't find domain with name '%s' on the configured Collibra environment",
+                        optionalDomainRequest.get());
+                logger.error(errorMessage);
+                throw new BusinessTermsPickerRetrieveException(
+                        "Error while retrieving Collibra business terms. See error details for more information",
+                        new FailedOperation(Collections.singletonList(new Problem(errorMessage))));
+            }
+        }
+
+        try {
+            return collibraApiClient
+                    .findBusinessTermAssets(request.offset(), request.limit(), request.filter(), domain)
+                    .stream()
+                    .map(BusinessTerm::new)
+                    .toList();
+        } catch (Exception ex) {
+            throw new BusinessTermsPickerRetrieveException(
+                    "Error while retrieving Collibra business terms. See error details for more information",
+                    new FailedOperation(Collections.singletonList(
+                            new Problem("Error while retrieving Collibra business terms", ex))));
+        }
+    }
+
+    @Override
+    public void validateBusinessTerms(List<CustomURLPickerItem> businessTerms, Option<CustomUrlPickerRequest> request) {
+        logger.info("Validating {} business terms", businessTerms.size());
+        logger.debug(
+                "Validating {} business terms: {} with request parameters {}",
+                businessTerms.size(),
+                businessTerms,
+                request);
+
+        List<Tuple2<BusinessTerm, Option<BusinessTerm>>> results;
+        var collibraBusinessTerms = businessTerms.stream()
+                .map(businessTerm -> new BusinessTerm(businessTerm.getId(), businessTerm.getValue()))
+                .toList();
+
+        try {
+            logger.info(
+                    "Retrieving assets with ids: {}",
+                    collibraBusinessTerms.stream().map(BusinessTerm::id).toList());
+            results = collibraBusinessTerms.stream()
+                    .map(businessTerm -> new Tuple2<>(
+                            businessTerm,
+                            collibraApiClient
+                                    .findBusinessTermAsset(businessTerm.id())
+                                    .map(BusinessTerm::new)))
+                    .toList();
+        } catch (Exception ex) {
+            logger.error("Error while retrieving assets from Collibra client", ex);
+            throw new BusinessTermsPickerValidationException(
+                    "Error while validating Collibra business terms. See error details for more information",
+                    new FailedOperation(Collections.singletonList(
+                            new Problem("Error while validating Collibra business terms", ex))));
+        }
+
+        var assetsNotFound = results.stream().filter(t -> t._2.isEmpty()).toList();
+
+        var assetsMismatch = results.stream()
+                .filter(t -> t._2.fold(() -> false, asset -> !t._1.equals(asset)))
+                .toList();
+
+        logger.info(
+                "From {} business terms to be validated, {} are OK, {} are not found, and {} mismatch",
+                businessTerms.size(),
+                (businessTerms.size() - assetsNotFound.size() - assetsMismatch.size()),
+                assetsNotFound.size(),
+                assetsMismatch.size());
+        logger.debug(
+                "From {} business terms to be validated, {} are not found, and {} mismatch",
+                businessTerms.stream().map(CustomURLPickerItem::getId).toList(),
+                assetsNotFound.stream().map(t -> t._1.id()).toList(),
+                assetsMismatch.stream()
+                        .map(t -> String.format(
+                                "Received: %s. Actual in Collibra: %s",
+                                t._1.value(), t._2.get().value()))
+                        .toList());
+
+        var errors = Stream.concat(
+                        assetsNotFound.stream()
+                                .map(t -> new Problem(
+                                        String.format("Couldn't find business term with id '%s'", t._1.id()))),
+                        assetsMismatch.stream()
+                                .map(t -> new Problem(String.format(
+                                        "Content of business term with id '%s' doesn't match with Collibra business term. Received: '%s'. Actual in Collibra: '%s'",
+                                        t._1.id(), t._1.value(), t._2.get().value()))))
+                .toList();
+        if (!errors.isEmpty()) {
+            logger.error("Errors found while retrieving business terms from Collibra environment: {}", errors);
+            throw new BusinessTermsPickerValidationException(
+                    String.format(
+                            "%s business terms have an error when validating them against the Collibra environment. See error details for more information",
+                            errors.size()),
+                    new FailedOperation(errors));
+        }
     }
 }

@@ -3,16 +3,16 @@ package it.agilelab.witboost.datacatalogplugin.collibra.service;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.control.Either;
+import io.vavr.control.Option;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.api.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.invoker.ApiClient;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.*;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.CollibraAPIConfig;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.CollibraConfig;
-import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.Column;
-import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DataProduct;
-import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.OutputPort;
+import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
+import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraConfig;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.parser.Parser;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,7 +54,7 @@ public class CollibraApiClient {
         this.collibraConfig = collibraConfig;
 
         this.apiClient = new ApiClient(buildRestTemplate());
-        this.apiClient.setBasePath(collibraAPIConfig.basePath() + "/rest/2.0");
+        this.apiClient.setBasePath(collibraAPIConfig.endpoint() + "/rest/2.0");
         this.apiClient.setUsername(collibraAPIConfig.username());
         this.apiClient.setPassword(collibraAPIConfig.password());
 
@@ -324,6 +324,40 @@ public class CollibraApiClient {
         restTemplate.setInterceptors(List.of(new PatchInterceptor()));
 
         return restTemplate;
+    }
+
+    public List<Asset> findBusinessTermAssets(
+            BigInteger offset, BigInteger limit, Option<String> nameFilter, Optional<Domain> domain) {
+        var nameSearch = nameFilter.getOrElse((String) null);
+        var businessTermAssetTypeId = collibraConfig.businessTermTypeId();
+        var response = assetsApiClient.findAssets(
+                offset.intValue(),
+                limit.intValue(),
+                nameSearch,
+                "ANYWHERE",
+                domain.map(Domain::getId).orElse(null),
+                null,
+                List.of(UUID.fromString(businessTermAssetTypeId)),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        return response.getResults();
+    }
+
+    public Option<Asset> findBusinessTermAsset(String id) {
+        logger.debug("Contacting Collibra to find Business Term asset with id '{}", id);
+        try {
+            var response = assetsApiClient.getAsset(UUID.fromString(id));
+            return Option.some(response);
+        } catch (HttpClientErrorException ex) {
+            if (ex.getStatusCode().is4xxClientError()) {
+                logger.error(String.format("Couldn't find Business Term asset with id '%s'", id), ex);
+                return Option.none();
+            } else throw ex;
+        }
     }
 
     private class LoginInterceptor implements ClientHttpRequestInterceptor {

@@ -1,11 +1,10 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.controller;
 
-import it.agilelab.witboost.datacatalogplugin.collibra.common.DataCatalogPluginProvisioningException;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.DataCatalogPluginValidationException;
+import it.agilelab.witboost.datacatalogplugin.collibra.common.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.RequestValidationError;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.SystemError;
-import java.util.ArrayList;
-import java.util.List;
+import jakarta.validation.ConstraintViolationException;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -29,24 +28,29 @@ public class DataCatalogPluginExceptionHandler {
     @ExceptionHandler({DataCatalogPluginValidationException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     protected RequestValidationError handleConflict(DataCatalogPluginValidationException ex) {
-        List<String> list = new ArrayList<>();
-        list.add(ex.getMessage());
-        return new RequestValidationError(list);
+        logger.error("DataCatalogPluginValidation Error", ex);
+        return ErrorBuilder.buildRequestValidationError(Optional.ofNullable(ex.getMessage()), ex.getFailedOperation());
+    }
+
+    @ExceptionHandler({ConstraintViolationException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    protected RequestValidationError handleConflict(ConstraintViolationException ex) {
+        logger.error("Constraint violation Error", ex);
+        return ErrorBuilder.buildRequestValidationError(ex);
     }
 
     @ExceptionHandler({DataCatalogPluginProvisioningException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     protected RequestValidationError handleConflict(DataCatalogPluginProvisioningException ex) {
+        logger.error("DataCatalogPluginProvisioning Error", ex);
         // TODO return provisioningstatus instead, missing errormoreinfo
-        List<String> list = new ArrayList<>();
-        list.add(ex.getMessage());
-        return new RequestValidationError(list);
+        return ErrorBuilder.buildRequestValidationError(Optional.ofNullable(ex.getMessage()), ex.getFailedOperation());
     }
 
     @ExceptionHandler({RuntimeException.class})
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     protected SystemError handleConflict(RuntimeException ex) {
         logger.error("Error", ex);
-        return new SystemError(ex.getMessage());
+        return ErrorBuilder.buildSystemError(Optional.empty(), ex);
     }
 }

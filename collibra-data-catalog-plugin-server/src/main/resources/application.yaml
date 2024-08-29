@@ -12,18 +12,24 @@ springdoc:
 logging:
   level:
     it.agilelab.witboost.datacatalogplugin: DEBUG
+    org.zalando.logbook: TRACE
 
 collibra:
+  communityId: ""
   dataProductTypeId: ""
   statusId: ""
-  communityId: ""
   domainTypeId: ""
   descriptionAttributeTypeId: ""
   columnTypeId: ""
   relationTypeId: ""
+  businessTermTypeId: ""
 
 api:
   username: ${COLLIBRA_USERNAME}
   password: ${COLLIBRA_PASSWORD}
-  basePath: ${COLLIBRA_HOST}
+  endpoint: ${COLLIBRA_HOST}
 
+custom-url-picker:
+  cors:
+    endpointMask: "/v1/resources/**"
+    origin: ""

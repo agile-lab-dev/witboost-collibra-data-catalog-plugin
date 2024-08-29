@@ -1,4 +1,4 @@
-package it.agilelab.witboost.datacatalogplugin.collibra.common;
+package it.agilelab.witboost.datacatalogplugin.collibra.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -10,4 +10,5 @@ public record CollibraConfig(
         String domainTypeId,
         String descriptionAttributeTypeId,
         String columnTypeId,
-        String relationTypeId) {}
+        String relationTypeId,
+        String businessTermTypeId) {}

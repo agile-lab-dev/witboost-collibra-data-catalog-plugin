@@ -6,7 +6,7 @@ import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.EntityRefer
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.ProvisioningRequest;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.ProvisioningStatus;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.ValidationResult;
-import it.agilelab.witboost.datacatalogplugin.collibra.service.DatacatalogService;
+import it.agilelab.witboost.datacatalogplugin.collibra.service.DataCatalogService;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +23,9 @@ import org.springframework.web.context.request.NativeWebRequest;
 @Service
 public class DataCatalogPluginController implements V1ApiDelegate {
 
-    private final DatacatalogService datacatalogService;
+    private final DataCatalogService datacatalogService;
 
-    public DataCatalogPluginController(DatacatalogService datacatalogService) {
+    public DataCatalogPluginController(DataCatalogService datacatalogService) {
         this.datacatalogService = datacatalogService;
     }
 

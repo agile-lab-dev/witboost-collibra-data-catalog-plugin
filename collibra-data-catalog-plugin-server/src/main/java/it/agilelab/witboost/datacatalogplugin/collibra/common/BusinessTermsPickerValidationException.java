@@ -1,9 +1,9 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.common;
 
-public class DataCatalogPluginProvisioningException extends RuntimeException {
+public class BusinessTermsPickerValidationException extends RuntimeException {
     private final FailedOperation failedOperation;
 
-    public DataCatalogPluginProvisioningException(String message, FailedOperation failedOperation) {
+    public BusinessTermsPickerValidationException(String message, FailedOperation failedOperation) {
         super(message);
         this.failedOperation = failedOperation;
     }

@@ -8,7 +8,7 @@ import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.ValidationR
 /***
  * Service to handle data catalog provisioning
  */
-public interface DatacatalogService {
+public interface DataCatalogService {
 
     /**
      * Provides an entity reference for a component

@@ -142,25 +142,22 @@ export PROVISIONER_VERSION=$(date +%Y%m%d-%H%M%S);
 
 **CI/CD:** the pipeline is based on GitLab CI as that's what we use internally. It's configured by the `.gitlab-ci.yaml` file in the root of the repository. You can use that as a starting point for your customizations.
 
-### Implementing server logic
+## Configuring
 
-The project utilizes the `openapi-generator` Maven plugin to generate the Spring endpoint methods from the interface specification located in `src/main/resources/interface-specification.yml`. The files are generated at compile/build time, so they can't be modified as they'd be rewritten everytime you build the application. You can find the generated sources at `collibra-data-catalog-plugin-server/target/generated-sources/openapi/src/main/java`.
-
-The generated files include one Java interface per each existing endpoint version. That is, for `/v1` endpoints it will generate the `V1ApiDelegate.java` interface containing all endpoints starting with `/v1`, for `/v2` the `V2ApiDelegate.java` and so on. The interface defaults the endpoints to answer with 501 Not Implemented unless overridden. We provide a class `controller.it.agilelab.witboost.datacatalogplugin.collibra.SpecificProvisionerController` as an example class with one overridden method. To implement the specific provisioner logic, implement the necessary methods and start developing.
-
-Exceptions are handled using Spring `@RestControllerAdvice` annotation. We provide a basic implementation on `controller.it.agilelab.witboost.datacatalogplugin.collibra.SpecificProvisionerExceptionHandler` which handles both business and runtime exceptions, but be free to modify this exception handler based on your business requirements.
+Configuration is handled via Spring Boot `application.yaml` file. Check [Configuration](./docs/configuration.md) for more information.
 
 ## Running
 
 To run the server locally, use:
 
 ```bash
-mvn -pl common spring-boot:run
+mvn -pl collibra-data-catalog-plugin-server spring-boot:run
 ```
 
 By default, the server binds to port `8888` on localhost. After it's up and running you can make provisioning requests to this address. You can access the running application [here](http://127.0.0.1:8888).
 
 SwaggerUI is configured and hosted on the path `/docs`. You can access it [here](http://127.0.0.1:8888/docs)
+
 
 ## Deploying
 

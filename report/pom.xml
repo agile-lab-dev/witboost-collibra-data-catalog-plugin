@@ -40,6 +40,7 @@
                     <excludes>
                         <exclude>it/agilelab/witboost/datacatalogplugin/collibra/openapi/**</exclude>
                         <exclude>it/agilelab/witboost/datacatalogplugin/collibra/Main.class</exclude>
+                        <exclude>it/agilelab/witboost/datacatalogplugin/collibra/client/**</exclude>
                     </excludes>
                 </configuration>
                 <executions>

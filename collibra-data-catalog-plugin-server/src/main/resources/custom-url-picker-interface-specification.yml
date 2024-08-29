@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: Custom URL Picker API
+  description: |
+    <a href="/openapi/ui/custom-url-picker-openapi.yaml" target="_blank" download="custom-url-picker-openapi.yaml"><button>Download OpenAPI Specification</button></a>
+
+    A **Custom URL Picker** is a picker that can be used inside Witboost templates to ask information to end users through a drop-down menu.
+
+    The options of the drop-down menu can be supplied by a microservice implementing the **Custom URL Picker API**.
+  version: '0.1.0'
+tags:
+  - name: CustomUrlPicker
+    description: API endpoints useful for implementing the Custom URL Picker microservice
+paths:
+  /v1/resources:
+    post:
+      tags:
+        - CustomUrlPicker
+      summary: Returns a list of objects in a formatted way
+      description: >
+        This endpoint is used in the `retrieval phase`, i.e. when the user interacts with the Custom URL Picker to see the values to select from the drop-down list.
+
+        The microservice accepts as query params the **limit**, which is the number of elements to return at each request, **offset**, the number of values to skip at each request (used when there are many elements to return to the Custom URL Picker), and **filter**, i.e. the string the user types in the Custom URL Picker used to filter the values in the glossary. This endpoint accepts as input a generic JSON object containing useful information to help filter the values in the glossary.
+
+        For example, the following API call tells to the microservice to search for a glossary with marketing `areaType` and return the first 5 entries filtered by the keyword "customer".
+
+        ```text
+        POST /v1/resource?limit=5&offset=0&filter=customer
+
+        {
+          "areaType": "marketing"
+        }
+        ```
+
+
+        The microservice can respond in the following way:
+
+
+        - 200 status response:
+          ```json
+          [
+            { "id": 6, "value": "Marketing", "description": "Marketing description" },
+            { "id": 7, "value": "Customer", "description": "Customer description" }
+          ]
+          ```
+        - 400 status response:
+          ```json
+          {
+            "errors": ["Error while validating your request"]
+          }
+          ```
+        - 500 status response:
+          ```json
+          {
+            "errors": ["System error fetching elements from the glossary"]
+          }
+          ```
+      operationId: retrieveValues
+      parameters:
+        - name: filter
+          in: query
+          required: false
+          description: a string used to filter the returned values
+          schema:
+            type: string
+        - name: offset
+          in: query
+          description: the number of values to skip for each request
+          required: true
+          schema:
+            type: number
+        - name: limit
+          in: query
+          description: the number of values to return at each request
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcesRequestBody'
+        required: false
+      responses:
+        200:
+          description: A list of filtered values
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+        400:
+          description: a list of bad request errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MalformedRequestError'
+        500:
+          description: a list of system errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+  /v1/resources/validate:
+    post:
+      tags:
+        - CustomUrlPicker
+      summary: Validates an input object against the glossary
+      description: >
+        This endpoint is used in the validation phase, i.e. when the user wants to modify some values in the Custom URL Picker (by using the Edit Template or by starting over the creation of an entity). In this case the Microservice will validate the selected values against the ones included in the glossary.
+        This endpoint accepts as request body an array of JSON objects with two properties: `selectedObjects` and `queryParameters`. The first property has not a specific schema but it has to contain at least the `id` property that is used by the microservice to find the value in the glossary. Every other property in that object will be compared with the property of the object fetched from the glossary. The `queryParameters` property is the same as the retrieval API body request.
+        For example, the following API request tells to the microservice to find in the glossary (with domain `marketing`) an entry with `id` 6 and see if the properties `value` and `description` are matching with the one that is found.
+        ```json
+        {
+          "selectedObjects": [
+            {
+              "id": 6,
+              "value": "Marketing",
+              "description": "This refers to marketing value"
+            }
+          ],
+          "queryParameters": {
+            "areaType": "marketing"
+          }
+        }
+        ```
+
+        The microservice can respond in the following way:
+
+        - 200 status response: `"OK"`
+        - 400 status response:
+          ```json
+          {
+            "errors": [
+              {
+                "error": "The item with id 6 is not found",
+                "suggestion": "The selected value is wrong or it has been deleted from the glossary"
+              }
+            ]
+          }
+          ```
+        - 500 status response:
+          ```json
+          {
+            "errors": ["Network error while validating item with id 6."]
+          }
+          ```
+      operationId: validate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationRequest'
+      responses:
+        200:
+          description: A string saying that the validation succeeded
+          content:
+            application/json:
+              schema:
+                type: string
+        400:
+          description: A list of strings containing the validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        500:
+          description: An internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+components:
+  schemas:
+    ResourcesRequestBody:
+      type: object
+      properties:
+        domain:
+          type: string
+          description: Domain id to filter the selected business terms
+    Item:
+      type: object
+      required:
+        - id
+        - value
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the business term in the catalog
+        value:
+          type: string
+          description: Value for the business term
+    MalformedRequestError:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: array
+          items:
+            type: string
+    ValidationError:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          description: a list of errors that may happen during request validation
+          type: array
+          items:
+            $ref: '#/components/schemas/Error'
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: this is a string representing the error occurred during validation
+        suggestion:
+          type: string
+          description: a string representing a suggestion of what a user can do for solving the above error
+    SystemError:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          description: a list of errors that may happen during API execution
+          type: array
+          items:
+            type: string
+    SelectedObject:
+      $ref: '#/components/schemas/Item'
+    ValidationRequest:
+      type: object
+      required:
+        - selectedObjects
+      properties:
+        selectedObjects:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedObject'
+          description: the object to validate
+        queryParameters:
+          $ref: '#/components/schemas/ResourcesRequestBody'
