@@ -1,8 +1,7 @@
-package it.agilelab.witboost.datacatalogplugin.collibra.service;
+package it.agilelab.witboost.datacatalogplugin.collibra.service.client;
 
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
-import io.vavr.control.Either;
 import io.vavr.control.Option;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.api.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.invoker.ApiClient;
@@ -10,7 +9,6 @@ import it.agilelab.witboost.datacatalogplugin.collibra.client.model.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.*;
-import it.agilelab.witboost.datacatalogplugin.collibra.parser.Parser;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
@@ -37,15 +35,21 @@ public class CollibraApiClient {
     private final CollibraAPIConfig collibraAPIConfig;
     private final CollibraConfig collibraConfig;
     private final ApiClient apiClient;
-    private final AuthenticationSessionsApi authenticationSessionsApi;
     private final AssetsApi assetsApiClient;
-    private final DomainsApi domainsApiClient;
     private final AttributesApi attributesApiClient;
     private final RelationsApi relationsApiClient;
+    private final CommunitiesApi communitiesApiClient;
+    private final DomainsApi domainsApiClient;
+
+    private final AuthenticationSessionsApi authenticationSessionsApi;
+
+    private final DomainCollibraApiClient domainCollibraApiClient;
+    private final DataProductCollibraApiClient dataProductCollibraApiClient;
+    private final BusinessTermCollibraApiClient businessTermCollibraApiClient;
+
     private String token = "invalid";
     private final String TOKEN_HEADER = "X-CSRF-TOKEN";
     private final String COOKIE_NAME = "JSESSIONID";
-    private static final String OUTPUTPORT_KIND = "outputport";
 
     private final Logger logger = LoggerFactory.getLogger(CollibraApiClient.class);
 
@@ -54,15 +58,27 @@ public class CollibraApiClient {
         this.collibraConfig = collibraConfig;
 
         this.apiClient = new ApiClient(buildRestTemplate());
-        this.apiClient.setBasePath(collibraAPIConfig.endpoint() + "/rest/2.0");
+        var trimmedEndpoint = collibraAPIConfig.endpoint().endsWith("/")
+                ? collibraAPIConfig
+                        .endpoint()
+                        .substring(0, collibraAPIConfig.endpoint().length() - 1)
+                : collibraAPIConfig.endpoint();
+        this.apiClient.setBasePath(trimmedEndpoint + "/rest/2.0");
         this.apiClient.setUsername(collibraAPIConfig.username());
         this.apiClient.setPassword(collibraAPIConfig.password());
 
         this.authenticationSessionsApi = new AuthenticationSessionsApi(apiClient);
         this.assetsApiClient = new AssetsApi(apiClient);
-        this.domainsApiClient = new DomainsApi(apiClient);
         this.attributesApiClient = new AttributesApi(apiClient);
         this.relationsApiClient = new RelationsApi(apiClient);
+        this.communitiesApiClient = new CommunitiesApi(apiClient);
+        this.domainsApiClient = new DomainsApi(apiClient);
+
+        this.domainCollibraApiClient =
+                new DomainCollibraApiClient(collibraConfig, communitiesApiClient, domainsApiClient);
+        this.dataProductCollibraApiClient = new DataProductCollibraApiClient(
+                collibraConfig, assetsApiClient, attributesApiClient, relationsApiClient, domainCollibraApiClient);
+        this.businessTermCollibraApiClient = new BusinessTermCollibraApiClient(collibraConfig, assetsApiClient);
     }
 
     @Deprecated
@@ -129,183 +145,36 @@ public class CollibraApiClient {
     }
 
     public Asset createDataProduct(DataProduct dataProduct, UUID domainId) {
-
-        var addAssetRequest = new AddAssetRequest();
-
-        addAssetRequest
-                .name(dataProduct.getId())
-                .displayName(dataProduct.getName())
-                .statusId(UUID.fromString(collibraConfig.statusId()))
-                .domainId(domainId)
-                .typeId(UUID.fromString(collibraConfig.dataProductTypeId()))
-                .excludedFromAutoHyperlinking(true);
-
-        var asset = assetsApiClient.addAsset(addAssetRequest);
-
-        updateDataProductAttributes(asset.getId(), dataProduct);
-
-        var outputPorts = extractOutputPorts(dataProduct);
-        updateOutputPorts(domainId, asset.getId(), outputPorts);
-
-        return asset;
+        return dataProductCollibraApiClient.createDataProduct(dataProduct, domainId);
     }
 
     public Asset updateDataProduct(UUID id, DataProduct dataProduct, UUID domainId) {
-        var changeAssetRequest = new ChangeAssetRequest();
-
-        changeAssetRequest
-                .name(dataProduct.getId())
-                .displayName(dataProduct.getName())
-                .statusId(UUID.fromString(collibraConfig.statusId()))
-                .domainId(domainId)
-                .typeId(UUID.fromString(collibraConfig.dataProductTypeId()))
-                .excludedFromAutoHyperlinking(true);
-
-        var asset = assetsApiClient.changeAsset(id, changeAssetRequest);
-
-        updateDataProductAttributes(asset.getId(), dataProduct);
-
-        var outputPorts = extractOutputPorts(dataProduct);
-        updateOutputPorts(domainId, asset.getId(), outputPorts);
-
-        return asset;
-    }
-
-    private void updateDataProductAttributes(UUID id, DataProduct dataProduct) {
-        var attributes = findAttributesForAsset(id);
-        var attributeIds = attributes.stream().map(Attribute::getId).collect(Collectors.toList());
-        attributesApiClient.removeAttributes(attributeIds);
-
-        var descriptionAttributeTypeId = UUID.fromString(collibraConfig.descriptionAttributeTypeId());
-        List<Tuple2<UUID, String>> newAttributes =
-                List.of(Tuple.of(descriptionAttributeTypeId, dataProduct.getDescription()));
-
-        for (Tuple2<UUID, String> newAttribute : newAttributes) {
-            var addAttributeRequest = new AddAttributeRequest()
-                    .assetId(id)
-                    .typeId(newAttribute._1)
-                    .value(newAttribute._2);
-            attributesApiClient.addAttribute(addAttributeRequest);
-        }
-    }
-
-    private List<Attribute> findAttributesForAsset(UUID id) {
-        var attributes = attributesApiClient.findAttributes(0, 1000, null, id, null, null);
-        return attributes.getResults();
-    }
-
-    // TODO make private
-    public List<OutputPort> extractOutputPorts(DataProduct dataProduct) {
-        return dataProduct.getComponents().stream()
-                .filter(component -> component.get("kind").asText("none").equals(OUTPUTPORT_KIND))
-                .map(outputport -> Parser.parseComponent(outputport, OutputPort.class))
-                .filter(Either::isRight)
-                .map(Either::get)
-                .map(x -> (OutputPort) x)
-                .toList();
-    }
-
-    private void updateOutputPorts(UUID domainId, UUID dataProductId, List<OutputPort> outputPorts) {
-        var relations = relationsApiClient
-                .findRelations(0, 1000, null, dataProductId, null, null)
-                .getResults();
-
-        for (Relation relation : relations) {
-            var targetId = relation.getTarget().getId();
-            relationsApiClient.removeRelation1(relation.getId());
-            assetsApiClient.removeAsset(targetId);
-        }
-
-        // TODO support multiple output ports
-        var maybeOutputPort = outputPorts.stream().findFirst();
-        if (outputPorts.size() > 1) logger.warn("Ignoring Output Ports after the first one");
-
-        if (maybeOutputPort.isPresent()) {
-            var outputPort = maybeOutputPort.get();
-            logger.info("Adding Output Port: " + outputPort);
-
-            var columns = outputPort.getDataContract().getSchema();
-
-            for (Column column : columns) {
-                var addAssetRequest = new AddAssetRequest();
-
-                addAssetRequest
-                        .domainId(domainId)
-                        .name(outputPort.getId() + ":" + column.getName())
-                        .displayName(outputPort.getName() + " > " + column.getName())
-                        .typeId(UUID.fromString(collibraConfig.columnTypeId()))
-                        .excludedFromAutoHyperlinking(true);
-
-                logger.info("Adding asset: " + addAssetRequest);
-                var asset = assetsApiClient.addAsset(addAssetRequest);
-                logger.info("Asset added: " + asset);
-
-                var addRelationRequest = new AddRelationRequest();
-                addRelationRequest
-                        .sourceId(dataProductId)
-                        .targetId(asset.getId())
-                        .typeId(UUID.fromString(collibraConfig.relationTypeId()));
-
-                logger.info("Adding relation: " + addRelationRequest);
-                var relation = relationsApiClient.addRelation(addRelationRequest);
-                logger.info("Relation added: " + relation);
-            }
-        } else {
-            logger.warn("Data Product has no valid Output Ports");
-        }
+        return dataProductCollibraApiClient.updateDataProduct(id, dataProduct, domainId);
     }
 
     public Optional<Asset> findAssetForDataProduct(DataProduct dataProduct) {
-        var response = assetsApiClient.findAssets(
-                0, 10, dataProduct.getId(), "EXACT", null, null, null, null, null, null, null, null, null);
-
-        return response.getResults().stream().findFirst();
+        return dataProductCollibraApiClient.findAssetForDataProduct(dataProduct);
     }
 
     public Asset upsertDataProduct(DataProduct dataProduct) {
-        var domain = upsertDomain(dataProduct.getDomain());
-
-        var maybeAsset = findAssetForDataProduct(dataProduct);
-
-        if (maybeAsset.isEmpty()) {
-            return createDataProduct(dataProduct, domain.getId());
-        } else {
-            var id = maybeAsset.get().getId();
-            return updateDataProduct(id, dataProduct, domain.getId());
-        }
+        return dataProductCollibraApiClient.upsertDataProduct(dataProduct);
     }
 
-    public Optional<Domain> findDomainByName(String name) {
-        var response = domainsApiClient.findDomains(0, 10, name, "EXACT", null, null, null, null);
-
-        return response.getResults().stream().findFirst();
+    public Optional<DomainGroup> findDomainByName(String name) {
+        return domainCollibraApiClient.findDomainByName(name);
     }
 
-    public Domain upsertDomain(String name) {
-        var maybeDomain = findDomainByName(name);
-
-        if (maybeDomain.isEmpty()) {
-            return createDomain(name);
-        } else {
-            var id = maybeDomain.get().getId();
-            return updateDomain(id, name);
-        }
+    public DomainGroup upsertDomain(String name) {
+        return domainCollibraApiClient.upsertDomain(name);
     }
 
-    public Domain createDomain(String name) {
-        var addDomainRequest = new AddDomainRequest()
-                .name(name)
-                .typeId(UUID.fromString(collibraConfig.domainTypeId()))
-                .communityId(UUID.fromString(collibraConfig.communityId()))
-                .excludedFromAutoHyperlinking(true);
-
-        return domainsApiClient.addDomain(addDomainRequest);
+    public List<Asset> findBusinessTermAssets(
+            BigInteger offset, BigInteger limit, Option<String> nameFilter, Optional<DomainGroup> domain) {
+        return businessTermCollibraApiClient.findBusinessTermAssets(offset, limit, nameFilter, domain);
     }
 
-    public Domain updateDomain(UUID id, String name) {
-        var changeDomainRequest = new ChangeDomainRequest().name(name).excludedFromAutoHyperlinking(true);
-
-        return domainsApiClient.changeDomain(id, changeDomainRequest);
+    public Option<Asset> findBusinessTermAsset(String id) {
+        return businessTermCollibraApiClient.findBusinessTermAsset(id);
     }
 
     private RestTemplate buildRestTemplate() {
@@ -324,40 +193,6 @@ public class CollibraApiClient {
         restTemplate.setInterceptors(List.of(new PatchInterceptor()));
 
         return restTemplate;
-    }
-
-    public List<Asset> findBusinessTermAssets(
-            BigInteger offset, BigInteger limit, Option<String> nameFilter, Optional<Domain> domain) {
-        var nameSearch = nameFilter.getOrElse((String) null);
-        var businessTermAssetTypeId = collibraConfig.businessTermTypeId();
-        var response = assetsApiClient.findAssets(
-                offset.intValue(),
-                limit.intValue(),
-                nameSearch,
-                "ANYWHERE",
-                domain.map(Domain::getId).orElse(null),
-                null,
-                List.of(UUID.fromString(businessTermAssetTypeId)),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-        return response.getResults();
-    }
-
-    public Option<Asset> findBusinessTermAsset(String id) {
-        logger.debug("Contacting Collibra to find Business Term asset with id '{}", id);
-        try {
-            var response = assetsApiClient.getAsset(UUID.fromString(id));
-            return Option.some(response);
-        } catch (HttpClientErrorException ex) {
-            if (ex.getStatusCode().is4xxClientError()) {
-                logger.error(String.format("Couldn't find Business Term asset with id '%s'", id), ex);
-                return Option.none();
-            } else throw ex;
-        }
     }
 
     private class LoginInterceptor implements ClientHttpRequestInterceptor {

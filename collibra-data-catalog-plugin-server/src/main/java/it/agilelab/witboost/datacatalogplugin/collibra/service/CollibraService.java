@@ -4,15 +4,16 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.vavr.Tuple2;
 import io.vavr.control.Option;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Asset;
-import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Domain;
 import it.agilelab.witboost.datacatalogplugin.collibra.common.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.BusinessTerm;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.CustomUrlPickerRequest;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DomainGroup;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerItem;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerResourcesRequestBody;
 import it.agilelab.witboost.datacatalogplugin.collibra.parser.Parser;
+import it.agilelab.witboost.datacatalogplugin.collibra.service.client.CollibraApiClient;
 import java.util.*;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -21,9 +22,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class CollibraService implements DataCatalogService, BusinessTermService {
-
-    private static final String STORAGE_KIND = "storage";
-    private static final String OUTPUTPORT_KIND = "outputport";
 
     private final CollibraApiClient collibraApiClient;
     private final CollibraAPIConfig collibraAPIConfig;
@@ -64,23 +62,21 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
         try {
             var asset = collibraApiClient.upsertDataProduct(dataProduct);
 
-            var outputPorts = collibraApiClient.extractOutputPorts(dataProduct);
+            var outputPorts = dataProduct.extractOutputPorts();
 
             var collibraLink = createDataProductPublicInfo(asset);
             var publicInfo = new HashMap<String, Map<String, Map<String, String>>>();
             outputPorts.forEach(op -> publicInfo.put(op.getId(), collibraLink));
 
-            var provisioningStatus = new ProvisioningStatus(
-                            ProvisioningStatus.StatusEnum.COMPLETED, "Provisioned asset: " + asset)
+            return new ProvisioningStatus(ProvisioningStatus.StatusEnum.COMPLETED, "Provisioned asset: " + asset)
                     .info(new Info(publicInfo, JsonNodeFactory.instance.objectNode()));
-
-            return provisioningStatus;
         } catch (Exception ex) {
             logger.error("Error while provisioning", ex);
             throw new DataCatalogPluginProvisioningException(
                     "Error while provisioning data product on Collibra catalog. See error details for more information",
                     new FailedOperation(Collections.singletonList(
-                            new Problem("Error while provisioning data product on Collibra catalog", ex))));
+                            new Problem("Error while provisioning data product on Collibra catalog", ex))),
+                    ex);
         }
     }
 
@@ -108,7 +104,7 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
     @Override
     public List<BusinessTerm> getBusinessTerms(CustomUrlPickerRequest request) {
         logger.info("Retrieving business terms from Collibra based on Request: {}", request);
-        Optional<Domain> domain = Optional.empty();
+        Optional<DomainGroup> domain = Optional.empty();
         Optional<String> optionalDomainRequest =
                 request.queryParameters().toJavaOptional().flatMap(CustomURLPickerResourcesRequestBody::getDomain);
         if (optionalDomainRequest.isPresent()) {
@@ -127,7 +123,8 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
                                 String.format(
                                         "Error while fetching Collibra domain '%s'. Collibra environment answered with an error",
                                         optionalDomainRequest.get()),
-                                ex))));
+                                ex))),
+                        ex);
             }
 
             logger.info(
@@ -160,7 +157,8 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
             throw new BusinessTermsPickerRetrieveException(
                     "Error while retrieving Collibra business terms. See error details for more information",
                     new FailedOperation(Collections.singletonList(
-                            new Problem("Error while retrieving Collibra business terms", ex))));
+                            new Problem("Error while retrieving Collibra business terms", ex))),
+                    ex);
         }
     }
 
@@ -194,7 +192,8 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
             throw new BusinessTermsPickerValidationException(
                     "Error while validating Collibra business terms. See error details for more information",
                     new FailedOperation(Collections.singletonList(
-                            new Problem("Error while validating Collibra business terms", ex))));
+                            new Problem("Error while validating Collibra business terms", ex))),
+                    ex);
         }
 
         var assetsNotFound = results.stream().filter(t -> t._2.isEmpty()).toList();

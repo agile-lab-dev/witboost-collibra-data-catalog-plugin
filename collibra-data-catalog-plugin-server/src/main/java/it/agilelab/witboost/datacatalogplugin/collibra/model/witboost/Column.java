@@ -13,5 +13,5 @@ public class Column {
     private String description;
     private String dataType;
     private String dataLength;
-    private List<Tag> tags;
+    private List<Tag> tags = List.of();
 }

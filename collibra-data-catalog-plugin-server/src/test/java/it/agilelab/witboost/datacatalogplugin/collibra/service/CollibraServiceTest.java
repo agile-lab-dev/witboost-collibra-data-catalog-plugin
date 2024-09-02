@@ -5,14 +5,17 @@ import static org.mockito.Mockito.when;
 
 import io.vavr.control.Option;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Asset;
+import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Community;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Domain;
 import it.agilelab.witboost.datacatalogplugin.collibra.common.BusinessTermsPickerRetrieveException;
 import it.agilelab.witboost.datacatalogplugin.collibra.common.BusinessTermsPickerValidationException;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.BusinessTerm;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.CustomUrlPickerRequest;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DomainGroup;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerItem;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerResourcesRequestBody;
+import it.agilelab.witboost.datacatalogplugin.collibra.service.client.CollibraApiClient;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
@@ -98,10 +101,11 @@ class CollibraServiceTest {
                 new Asset()
                         .id(UUID.fromString("12345678-1234-1234-1234-1234567890ab"))
                         .displayName("my-bt-2"));
-        var domain = new Domain().name("my-domain");
-        when(collibraApiClient.findDomainByName("domain:my-domain")).thenReturn(Optional.of(domain));
+        var domainGroup = new DomainGroup(
+                new Community().name("my-domain"), new Domain().name("Data Products"), new Domain().name("Glossary"));
+        when(collibraApiClient.findDomainByName("domain:my-domain")).thenReturn(Optional.of(domainGroup));
         when(collibraApiClient.findBusinessTermAssets(
-                        BigInteger.valueOf(0), BigInteger.valueOf(10), Option.none(), Optional.of(domain)))
+                        BigInteger.valueOf(0), BigInteger.valueOf(10), Option.none(), Optional.of(domainGroup)))
                 .thenReturn(expected);
 
         var expectedReturn = List.of(

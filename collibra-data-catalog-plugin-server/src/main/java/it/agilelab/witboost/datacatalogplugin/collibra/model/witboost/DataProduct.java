@@ -1,8 +1,12 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.model.witboost;
 
+import static it.agilelab.witboost.datacatalogplugin.collibra.common.Constants.OUTPUTPORT_KIND;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.vavr.control.Either;
 import io.vavr.control.Option;
+import it.agilelab.witboost.datacatalogplugin.collibra.parser.Parser;
 import java.util.List;
 import java.util.Optional;
 import lombok.Getter;
@@ -30,7 +34,7 @@ public class DataProduct {
     private Optional<String> status;
     private Optional<String> maturity;
     private Optional<JsonNode> billing;
-    private List<JsonNode> tags;
+    private List<Tag> tags = List.of();
     private JsonNode specific;
     private List<JsonNode> components;
 
@@ -46,5 +50,17 @@ public class DataProduct {
                 .findFirst()
                 .flatMap(c -> Optional.ofNullable(c.get("kind")))
                 .map(JsonNode::textValue)));
+    }
+
+    public List<OutputPort<Specific>> extractOutputPorts() {
+        // TODO Should we return error on malformed output port? Or assume everything is OK since DC is called at the
+        //  end of the line?
+        return this.getComponents().stream()
+                .filter(component -> component.get("kind").asText("none").equals(OUTPUTPORT_KIND))
+                .map(outputport -> Parser.parseComponent(outputport, Specific.class))
+                .filter(Either::isRight)
+                .map(Either::get)
+                .map(x -> (OutputPort<Specific>) x)
+                .toList();
     }
 }

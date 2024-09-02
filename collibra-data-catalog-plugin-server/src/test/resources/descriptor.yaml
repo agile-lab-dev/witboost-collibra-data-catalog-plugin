@@ -1,0 +1,119 @@
+dataProductOwnerDisplayName: johndoe
+environment: development
+domain: finance
+kind: dataproduct
+domainId: finance
+id: urn:dmb:dp:finance:test-collibra:0
+description: description
+devGroup: dev
+ownerGroup: john.doe_agilelab.it
+dataProductOwner: user:john.doe_agilelab.it
+email: john.doe@agilelab.it
+version: 0.1.0-SNAPSHOT-1
+name: data-product
+fullyQualifiedName: data-product
+maturity: null
+useCaseTemplateId: urn:dmb:utm:analytics-data-product-template:0.0.0
+infrastructureTemplateId: urn:dmb:itm:collibra-mock-provisioner:1
+billing: {}
+tags:
+  - tagFQN: tag-1
+    source: Glossary
+    labelType: Manual
+    state: Confirmed
+  - tagFQN: tag-2
+    source: Glossary
+    labelType: Manual
+    state: Confirmed
+specific: {}
+components:
+  - kind: outputport
+    id: urn:dmb:cmp:finance:test-collibra:0:collibra-output-port
+    description: description
+    name: Output Port Name
+    fullyQualifiedName: CoOutput Port Name
+    version: 0.0.0
+    infrastructureTemplateId: urn:dmb:itm:collibra-outputport-provisioner:0
+    useCaseTemplateId: urn:dmb:utm:collibra-outputport-template:0.0.0
+    dependsOn:
+      - urn:dmb:cmp:finance:test-collibra:0:collibra-storage-area
+    platform: Collibra
+    technology: Collibra
+    outputPortType: SQL
+    creationDate: 2024-03-12T09:55:12.228Z
+    startDate: 2024-03-12T09:55:12.228Z
+    dataContract:
+      schema:
+        - name: date
+          description: A date
+          dataType: DATE
+          tags:
+            - tagFQN: Network Status
+              source: Glossary
+              labelType: Manual
+              state: Confirmed
+            - tagFQN: PII
+              source: Tag
+              labelType: Manual
+              state: Confirmed
+      termsAndConditions: Can be used for production purposes.
+      SLA:
+        intervalOfChange: 2BD
+        timeliness: 2BD
+        upTime: 99.9%
+    dataSharingAgreement:
+      purpose: Foundational data for downstream use cases.
+      billing: None.
+      security: Platform standard security policies.
+      intendedUsage: Any downstream use cases.
+      limitations: Needs joining with other datasets (eg customer data) for most
+        analytical use cases.
+      lifeCycle: Data loaded every two days and typically never deleted.
+      confidentiality: None.
+    tags:
+      - tagFQN: op-tag-1
+        source: Glossary
+        labelType: Manual
+        state: Confirmed
+      - tagFQN: op-tag-2
+        source: Glossary
+        labelType: Manual
+        state: Confirmed
+    sampleData: {}
+    semanticLinking: []
+    specific:
+      viewName: test_view
+      tableName: test_table
+      database: FINANCE
+      schema: TESTSNOWFLAKE_0
+  - kind: storage
+    id: urn:dmb:cmp:finance:test-collibra:0:collibra-storage-area
+    description: Collibra Storage Area
+    name: Collibra Storage Area
+    fullyQualifiedName: Collibra Storage Area
+    version: 0.0.0
+    infrastructureTemplateId: urn:dmb:itm:collibra-storage-provisioner:0
+    useCaseTemplateId: urn:dmb:utm:collibra-storage-template:0.0.0
+    dependsOn: []
+    platform: Collibra
+    technology: Collibra
+    StorageType: Database
+    tags: []
+    specific:
+      database: FINANCE
+      schema: TESTSNOWFLAKE_0
+      tables:
+        - tableName: test_table
+          schema:
+            - name: date
+              description: A date
+              dataType: DATE
+              tags:
+                - tagFQN: Network Status
+                  source: Glossary
+                  labelType: Manual
+                  state: Confirmed
+                - tagFQN: PII
+                  source: Tag
+                  labelType: Manual
+                  state: Confirmed

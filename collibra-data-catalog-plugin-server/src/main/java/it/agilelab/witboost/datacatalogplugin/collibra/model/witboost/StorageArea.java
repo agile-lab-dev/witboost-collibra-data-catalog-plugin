@@ -1,7 +1,6 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.model.witboost;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Optional;
 import lombok.Getter;
@@ -18,5 +17,5 @@ public class StorageArea<T> extends Component<T> {
     private Optional<String> platform;
     private Optional<String> technology;
     private Optional<String> storageType;
-    private List<JsonNode> tags;
+    private List<Tag> tags = List.of();
 }

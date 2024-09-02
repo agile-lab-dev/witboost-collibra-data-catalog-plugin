@@ -8,6 +8,11 @@ public class DataCatalogPluginValidationException extends RuntimeException {
         this.failedOperation = failedOperation;
     }
 
+    public DataCatalogPluginValidationException(String message, FailedOperation failedOperation, Throwable cause) {
+        super(message, cause);
+        this.failedOperation = failedOperation;
+    }
+
     public FailedOperation getFailedOperation() {
         return failedOperation;
     }

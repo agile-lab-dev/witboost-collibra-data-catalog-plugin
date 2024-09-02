@@ -8,6 +8,11 @@ public class BusinessTermsPickerRetrieveException extends RuntimeException {
         this.failedOperation = failedOperation;
     }
 
+    public BusinessTermsPickerRetrieveException(String message, FailedOperation failedOperation, Throwable cause) {
+        super(message, cause);
+        this.failedOperation = failedOperation;
+    }
+
     public FailedOperation getFailedOperation() {
         return failedOperation;
     }

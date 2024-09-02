@@ -1,14 +1,14 @@
 <p align="center">
     <a href="https://www.agilelab.it/witboost">
-        <img src="docs/img/witboost_light.png" alt="witboost" width=600 >
+        <img src="docs/img/witboost_logo.svg" alt="witboost" width=600 >
     </a>
 </p>
 
-Designed by [Agile Lab](https://www.agilelab.it/), witboost is a versatile platform that addresses a wide range of sophisticated data engineering challenges. It enables businesses to discover, enhance, and productize their data, fostering the creation of automated data platforms that adhere to the highest standards of data governance. Want to know more about witboost? Check it out [here](https://www.agilelab.it/witboost) or [contact us!](https://www.agilelab.it/contacts).
+Designed by [Agile Lab](https://www.agilelab.it/), witboost is a versatile platform that addresses a wide range of sophisticated data engineering challenges. It enables businesses to discover, enhance, and productize their data, fostering the creation of automated data platforms that adhere to the highest standards of data governance. Want to know more about witboost? Check it out [here](https://www.witboost.com) or [contact us!](https://www.witboost.com/contact-us).
 
 This repository is part of our [Starter Kit](https://github.com/agile-lab-dev/witboost-starter-kit) meant to showcase witboost's integration capabilities and provide a "batteries-included" product.
 
-# Java Scaffold
+# Collibra Data Catalog Plugin
 
 - [Overview](#overview)
 - [Building](#building)
@@ -20,18 +20,17 @@ This repository is part of our [Starter Kit](https://github.com/agile-lab-dev/wi
 
 ## Overview
 
-This project implements a Witboost data Catalog Plugin for [Collibra](https://www.collibra.com/us/en) using Java & SpringBoot.
+This project implements a Witboost Data Catalog Plugin for [Collibra](https://www.collibra.com/us/en) using Java & SpringBoot.
 
-### What's a Specific Provisioner?
+### What's a Data Catalog Plugin?
 
-A Specific Provisioner is a microservice which is in charge of deploying components that use a specific technology. When the deployment of a Data Product is triggered, the platform generates it descriptor and orchestrates the deployment of every component contained in the Data Product. For every such component the platform knows which Specific Provisioner is responsible for its deployment, and can thus send a provisioning request with the descriptor to it so that the Specific Provisioner can perform whatever operation is required to fulfill this request and report back the outcome to the platform.
-
-You can learn more about how the Specific Provisioners fit in the broader picture [here](https://docs.witboost.agilelab.it/docs/p2_arch/p1_intro/#deploy-flow).
+A Data Catalog Plugin is an extension point for Witboost that allows publishing entities on an external, pluggable Data Catalog. It is invoked at the end of the provisioning flow and receives the whole information about the entity descriptor, provisioning info, etc.
+ 
+You can learn more about how Data Catalog plugins fit in the broader picture [here](https://docs.witboost.com/docs/p2_arch/p1_intro/#deploy-flow).
 
 ### Software stack
 
 This microservice is written in Java 17, using SpringBoot for the HTTP layer. Project is built with Apache Maven and supports packaging and Docker image, ideal for Kubernetes deployments (which is the preferred option).
-
 
 ### Git hooks
 

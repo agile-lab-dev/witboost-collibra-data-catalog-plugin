@@ -27,16 +27,18 @@ The Collibra Data Catalog provides a centralized repository where users can disc
 
 Data Mesh entities in Witboost are mapped to Collibra concepts as follows:
 
-| Witboost                       | Collibra                                                                                               |
-|--------------------------------|--------------------------------------------------------------------------------------------------------|
-| ---                            | Community "Data Mesh"                                                                                  |
-| Domain "Finance"               | Domain "Finance" inside Community "Data Mesh"                                                          |
-| Data Product "Customer"        | Data Asset "Customer" inside Domain "Finance"                                                          |
-| Output Port "Active Customers" | Data Asset > Data Set "Active Customers" inside Data Asset "Customer"                                  |
-| Data Contract                  | Attributes on Data Set "Active Customers"                                                              |
-| Column "customer_id"           | Data Asset > Data Element > Column "customer_id" of Data Set "Active Customers"                        |
+| Witboost                       | Collibra                                                                                                                                                                                          |
+|--------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---                            | Community "Data Mesh"                                                                                                                                                                             |
+| Domain "Finance"               | Community "Finance" inside Community "Data Mesh" which in turn will contain two Collibra domains: A Data Asset domain for storing Data Products, and a Glossary domain for storing Business Terms |
+| Data Product "Customer"        | Data Asset "Customer" inside Data Asset Domain on Community "Finance"                                                                                                                             |
+| Output Port "Active Customers" | Data Asset > Data Set "Active Customers" inside Data Asset "Customer"                                                                                                                             |
+| Data Contract                  | Attributes on Data Set "Active Customers"                                                                                                                                                         |
+| Column "customer_id"           | Data Asset > Data Element > Column "customer_id" of Data Set "Active Customers"                                                                                                                   |
 
-A Community is added on top as a container for all Domains and Data Products in them, and the other Witboost entities are mapped 1-1 with Collibra entities maintaining the original containment/composition relationships.
+As explained above, the concept of the Witboost Domain is made up of a Community containing two static different types of domain: A Data Asset Domain for storing Data Products, and a Glossary domain for storing Business Terms. The latter will be used to validate tags on the different assets.
+
+A Community is added on top as a container for all Domains and Data Products in them, and the Data Product and its components are mapped 1-1 with Collibra entities maintaining the original containment/composition relationships.
 
 This mapping relies only on the basic building blocks of Collibra and the packaged asset types that it provides out of the box.
 

@@ -6,10 +6,12 @@ import java.util.List;
 import java.util.Optional;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 @Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
+@ToString
 public class OutputPort<T> extends Component<T> {
     private String version;
     private String infrastructureTemplateId;
@@ -24,7 +26,7 @@ public class OutputPort<T> extends Component<T> {
     private Optional<String> processDescription;
     private DataContract dataContract;
     private JsonNode dataSharingAgreement;
-    private List<JsonNode> tags;
+    private List<Tag> tags = List.of();
     private Optional<JsonNode> sampleData;
     private Optional<JsonNode> semanticLinking;
 }
