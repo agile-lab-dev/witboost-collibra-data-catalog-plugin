@@ -8,6 +8,7 @@ import it.agilelab.witboost.datacatalogplugin.collibra.common.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.BusinessTerm;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.CustomUrlPickerRequest;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DataProduct;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DomainGroup;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerItem;
@@ -25,12 +26,17 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
 
     private final CollibraApiClient collibraApiClient;
     private final CollibraAPIConfig collibraAPIConfig;
+    private final CollibraValidatorService collibraValidatorService;
 
     private final Logger logger = LoggerFactory.getLogger(CollibraService.class);
 
-    public CollibraService(CollibraApiClient collibraApiClient, CollibraAPIConfig collibraAPIConfig) {
+    public CollibraService(
+            CollibraApiClient collibraApiClient,
+            CollibraAPIConfig collibraAPIConfig,
+            CollibraValidatorService collibraValidatorService) {
         this.collibraApiClient = collibraApiClient;
         this.collibraAPIConfig = collibraAPIConfig;
+        this.collibraValidatorService = collibraValidatorService;
     }
 
     @Override
@@ -41,23 +47,20 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
 
     @Override
     public ValidationResult validate(ProvisioningRequest provisioningRequest) {
-        // TODO implement
-        return new ValidationResult(true);
+        try {
+            parseAndValidateDataProduct(provisioningRequest);
+            return new ValidationResult(true);
+        } catch (DataCatalogPluginValidationException ex) {
+            return new ValidationResult(false)
+                    .error(new ValidationError(ex.getFailedOperation().problems().stream()
+                            .map(Problem::getMessage)
+                            .toList()));
+        }
     }
 
     public ProvisioningStatus provision(ProvisioningRequest provisioningRequest) {
-        // TODO validate
 
-        var eitherDataProduct = Parser.parseDataProduct(provisioningRequest.getDescriptor());
-
-        if (eitherDataProduct.isLeft()) {
-            logger.error("Unable to parse descriptor; error: {}", eitherDataProduct.getLeft());
-            throw new DataCatalogPluginValidationException(
-                    "Error while validating data product descriptor. See error details for more information",
-                    eitherDataProduct.getLeft());
-        }
-
-        var dataProduct = eitherDataProduct.get();
+        var dataProduct = parseAndValidateDataProduct(provisioningRequest);
 
         try {
             var asset = collibraApiClient.upsertDataProduct(dataProduct);
@@ -80,6 +83,29 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
         }
     }
 
+    private DataProduct parseAndValidateDataProduct(ProvisioningRequest provisioningRequest) {
+        logger.info("Parsing Data Product Descriptor");
+        var eitherDataProduct = Parser.parseDataProduct(provisioningRequest.getDescriptor());
+
+        if (eitherDataProduct.isLeft()) {
+            logger.error("Unable to parse descriptor; error: {}", eitherDataProduct.getLeft());
+            throw new DataCatalogPluginValidationException(
+                    "Error while validating data product descriptor. See error details for more information",
+                    eitherDataProduct.getLeft());
+        }
+
+        var dataProduct = eitherDataProduct.get();
+
+        logger.info("Validating Data Product Descriptor");
+        var validationResult = collibraValidatorService.validate(dataProduct);
+        if (validationResult.isPresent()) {
+            logger.error("Error while validating data product: {}", validationResult.get());
+            throw new DataCatalogPluginValidationException(
+                    "Error while validating data product descriptor. See error details for more information",
+                    validationResult.get());
+        } else return dataProduct;
+    }
+
     private Map<String, Map<String, String>> createDataProductPublicInfo(Asset asset) {
         var trimmedBasePath = collibraAPIConfig.endpoint().endsWith("/")
                 ? collibraAPIConfig
@@ -97,8 +123,19 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
     }
 
     public ProvisioningStatus unprovision(ProvisioningRequest provisioningRequest) {
-        // TODO implement
-        return new ProvisioningStatus(ProvisioningStatus.StatusEnum.COMPLETED, "");
+        var dataProduct = parseAndValidateDataProduct(provisioningRequest);
+
+        try {
+            collibraApiClient.deleteDataProduct(dataProduct);
+            return new ProvisioningStatus(ProvisioningStatus.StatusEnum.COMPLETED, "");
+        } catch (Exception ex) {
+            logger.error("Error while unprovisioning", ex);
+            throw new DataCatalogPluginProvisioningException(
+                    "Error while unprovisioning data product on Collibra catalog. See error details for more information",
+                    new FailedOperation(Collections.singletonList(
+                            new Problem("Error while unprovisioning data product on Collibra catalog", ex))),
+                    ex);
+        }
     }
 
     @Override
@@ -140,10 +177,8 @@ public class CollibraService implements DataCatalogService, BusinessTermService 
                 String errorMessage = String.format(
                         "Couldn't find domain with name '%s' on the configured Collibra environment",
                         optionalDomainRequest.get());
-                logger.error(errorMessage);
-                throw new BusinessTermsPickerRetrieveException(
-                        "Error while retrieving Collibra business terms. See error details for more information",
-                        new FailedOperation(Collections.singletonList(new Problem(errorMessage))));
+                logger.warn(errorMessage);
+                return List.of();
             }
         }
 

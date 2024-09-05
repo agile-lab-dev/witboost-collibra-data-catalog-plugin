@@ -152,6 +152,10 @@ public class CollibraApiClient {
         return dataProductCollibraApiClient.updateDataProduct(id, dataProduct, domainId);
     }
 
+    public void deleteDataProduct(DataProduct dataProduct) {
+        dataProductCollibraApiClient.removeDataProduct(dataProduct);
+    }
+
     public Optional<Asset> findAssetForDataProduct(DataProduct dataProduct) {
         return dataProductCollibraApiClient.findAssetForDataProduct(dataProduct);
     }

@@ -6,15 +6,18 @@ import it.agilelab.witboost.datacatalogplugin.collibra.client.api.AssetsApi;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.api.AttributesApi;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.api.RelationsApi;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.*;
+import it.agilelab.witboost.datacatalogplugin.collibra.common.DataCatalogPluginProvisioningException;
+import it.agilelab.witboost.datacatalogplugin.collibra.common.FailedOperation;
+import it.agilelab.witboost.datacatalogplugin.collibra.common.Problem;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.Tag;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.client.HttpClientErrorException;
 
 public class DataProductCollibraApiClient {
 
@@ -83,6 +86,27 @@ public class DataProductCollibraApiClient {
         return asset;
     }
 
+    public void removeDataProduct(DataProduct dataProduct) {
+        var maybeAsset = findAssetForDataProduct(dataProduct);
+
+        if (maybeAsset.isEmpty()) {
+            logger.info("Data Product '{}' is not present on Collibra environment.", dataProduct.getId());
+        } else {
+            var id = maybeAsset.get().getId();
+            logger.info(
+                    "Data Product '{}' is present on Collibra environment with ID '{}', removing...",
+                    dataProduct.getId(),
+                    id);
+
+            // Removing output ports and data product. Domain and business terms are not removed
+            removeOutputPorts(id);
+            logger.info("Output Ports of Data Product '{}' removed successfully", dataProduct.getId());
+            logger.info("Removing Data Product '{}'", dataProduct.getId());
+            removeAssetList(List.of(id));
+            logger.info("Data Product '{}' removed successfully", dataProduct.getId());
+        }
+    }
+
     private void updateDataProductAttributes(UUID id, DataProduct dataProduct) {
         logger.info("Updating attributes and tags on Data Product Asset '{}'", id);
 
@@ -121,6 +145,8 @@ public class DataProductCollibraApiClient {
     }
 
     private void removeOutputPorts(UUID dataProductId) {
+        ArrayList<UUID> idsToRemove = new ArrayList<>();
+
         logger.info("Removing all Output Ports of Data Product Asset '{}'", dataProductId);
         var dataProductRelations = relationsApiClient
                 .findRelations(
@@ -132,9 +158,10 @@ public class DataProductCollibraApiClient {
                         null)
                 .getResults();
 
-        logger.debug(
-                "Data Product has the following Output Ports: {}",
-                dataProductRelations.stream().map(r -> r.getTarget().getId()).toList());
+        var outputPortIds =
+                dataProductRelations.stream().map(r -> r.getTarget().getId()).toList();
+        logger.debug("Data Product has the following Output Ports: {}", outputPortIds);
+        idsToRemove.addAll(outputPortIds);
         for (Relation dataProductRelation : dataProductRelations) {
             var targetOutputPortId = dataProductRelation.getTarget().getId();
 
@@ -143,32 +170,38 @@ public class DataProductCollibraApiClient {
                     .findRelations(0, 1000, null, targetOutputPortId, null, null)
                     .getResults();
 
-            logger.debug(
-                    "Output Port has the following columns: {}",
-                    outputPortRelations.stream().map(r -> r.getTarget().getId()).toList());
-            for (Relation outputPortRelation : outputPortRelations) {
-                var targetColumnId = outputPortRelation.getTarget().getId();
-                logger.debug(
-                        "Removing relation between Output Port '{}' and Column '{}'",
-                        targetOutputPortId,
-                        targetColumnId);
-                relationsApiClient.removeRelation1(outputPortRelation.getId());
-                logger.debug("Removing Column '{}'", targetColumnId);
-                assetsApiClient.removeAsset(targetColumnId);
-                logger.info("Column '{}' deleted successfully", targetColumnId);
-
-                // TODO If we add other relations to column, we have to destroy those as well
-            }
-
-            logger.debug(
-                    "Removing relation between Data Product '{}' and Output Port '{}'",
-                    dataProductId,
-                    targetOutputPortId);
-            relationsApiClient.removeRelation1(dataProductRelation.getId());
-            logger.debug("Removing Output Port '{}'", targetOutputPortId);
-            assetsApiClient.removeAsset(targetOutputPortId);
-            logger.info("Output Port '{}' deleted successfully", targetOutputPortId);
+            var columnIds =
+                    outputPortRelations.stream().map(r -> r.getTarget().getId()).toList();
+            logger.debug("Output Port has the following columns: {}", columnIds);
+            idsToRemove.addAll(columnIds);
         }
+
+        // When removing an asset, their relations with other assets are deleted automatically
+        removeAssetList(idsToRemove);
+    }
+
+    private void removeAssetList(List<UUID> idsToRemove) {
+        logger.info("Removing {} assets: {}", idsToRemove.size(), idsToRemove);
+        try {
+            assetsApiClient.removeAssets(idsToRemove);
+        } catch (HttpClientErrorException exception) {
+            if (!exception.getStatusCode().isSameCodeAs(HttpStatusCode.valueOf(404))) {
+                throw new DataCatalogPluginProvisioningException(
+                        "Error while removing assets on Collibra as part of a provisioning or unprovisioning operation. See error details for more information",
+                        new FailedOperation(
+                                Collections.singletonList(
+                                        new Problem(
+                                                String.format(
+                                                        "Error while removing %s assets from Collibra environment",
+                                                        idsToRemove),
+                                                Optional.of(exception),
+                                                Set.of(
+                                                        "Check that the Data Catalog Plugin is using the correct credentials and that they have the appropriate permissions to delete assets")))),
+                        exception);
+            }
+            logger.info("Received Not Found exception from Collibra, ignoring... {}", exception.getMessage());
+        }
+        logger.info("Assets removed successfully");
     }
 
     private void updateOutputPorts(UUID domainId, UUID dataProductId, List<OutputPort<Specific>> outputPorts) {

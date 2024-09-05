@@ -17,11 +17,11 @@ useCaseTemplateId: urn:dmb:utm:analytics-data-product-template:0.0.0
 infrastructureTemplateId: urn:dmb:itm:collibra-mock-provisioner:1
 billing: {}
 tags:
-  - tagFQN: tag-1
+  - tagFQN: tag 1
     source: Glossary
     labelType: Manual
     state: Confirmed
-  - tagFQN: tag-2
+  - tagFQN: tag 2
     source: Glossary
     labelType: Manual
     state: Confirmed
@@ -48,10 +48,10 @@ components:
           description: A date
           dataType: DATE
           tags:
-            - tagFQN: NetworkStatus
+            - tagFQN: Network Status
               source: Glossary
               labelType: Manual
-              state: Confirmed
+              state: Confirmed Value
             - tagFQN: PII
               source: Tag
               labelType: Manual
@@ -71,11 +71,11 @@ components:
       lifeCycle: Data loaded every two days and typically never deleted.
       confidentiality: None.
     tags:
-      - tagFQN: op-tag-1
+      - tagFQN: op tag 1
         source: Glossary
         labelType: Manual
         state: Confirmed
-      - tagFQN: op-tag-2
+      - tagFQN: op tag 2
         source: Glossary
         labelType: Manual
         state: Confirmed
@@ -86,34 +86,3 @@ components:
       tableName: test_table
       database: FINANCE
       schema: TESTSNOWFLAKE_0
-  - kind: storage
-    id: urn:dmb:cmp:finance:test-collibra:0:collibra-storage-area
-    description: Collibra Storage Area
-    name: Collibra Storage Area
-    fullyQualifiedName: Collibra Storage Area
-    version: 0.0.0
-    infrastructureTemplateId: urn:dmb:itm:collibra-storage-provisioner:0
-    useCaseTemplateId: urn:dmb:utm:collibra-storage-template:0.0.0
-    dependsOn: []
-    platform: Collibra
-    technology: Collibra
-    StorageType: Database
-    tags: []
-    specific:
-      database: FINANCE
-      schema: TESTSNOWFLAKE_0
-      tables:
-        - tableName: test_table
-          schema:
-            - name: date
-              description: A date
-              dataType: DATE
-              tags:
-                - tagFQN: NetworkStatus
-                  source: Glossary
-                  labelType: Manual
-                  state: Confirmed
-                - tagFQN: PII
-                  source: Tag
-                  labelType: Manual
-                  state: Confirmed

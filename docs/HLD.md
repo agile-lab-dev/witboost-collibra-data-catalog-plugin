@@ -80,3 +80,12 @@ Currently, the Collibra Data Catalog Plugin performs a simple validation of the 
 1. **Validate descriptor**: Upon receiving a Data Product descriptor, it is validated, checking for consistency and all required fields.
 2. **Deletion of business assets**: After validation, the Data Catalog Plugin will unprovision all the previously created assets/relationships, except the Community and Domain, as they can be used by other Data Products in the Data Catalog.
 3. **Report Outcome**: After the assets have been removed, the Data Catalog Plugin returns a `ProvisioningStatus`. This status confirms the successful deletion of the assets.
+
+## Business term retrieval
+
+Retrieval of business terms is tied to the Custom URL Picker endpoints, useful to retrieve the list of allowed values from Collibra Data Catalog to use during the creation of a component.
+
+1. **Query business terms from glossary**: Upon receiving a Custom URL Picker requests, a query is sent to Collibra using the request body inputs including offset, limit, an optional text filter and an optional Witboost domain filter which is translated into the Collibra community as explained above. The business term asset type is taken from configuration.
+2. **Return list of matching business terms**: After the query is resolved, its results are sent back to Witboost, sending the business term id and its value.
+
+![Custom URL Picker](img/hld_business_term_retrieval.png)

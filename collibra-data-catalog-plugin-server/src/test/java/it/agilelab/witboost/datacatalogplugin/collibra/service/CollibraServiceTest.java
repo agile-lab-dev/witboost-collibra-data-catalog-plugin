@@ -1,25 +1,27 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.service;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 import io.vavr.control.Option;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Asset;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Community;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.model.Domain;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.BusinessTermsPickerRetrieveException;
-import it.agilelab.witboost.datacatalogplugin.collibra.common.BusinessTermsPickerValidationException;
+import it.agilelab.witboost.datacatalogplugin.collibra.common.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraAPIConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.BusinessTerm;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.CustomUrlPickerRequest;
+import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DataProduct;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DomainGroup;
+import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerItem;
 import it.agilelab.witboost.datacatalogplugin.collibra.openapi.model.customurlpicker.CustomURLPickerResourcesRequestBody;
 import it.agilelab.witboost.datacatalogplugin.collibra.service.client.CollibraApiClient;
+import it.agilelab.witboost.datacatalogplugin.collibra.utils.ResourceUtils;
+import java.io.IOException;
 import java.math.BigInteger;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,8 +39,126 @@ class CollibraServiceTest {
     @Mock
     CollibraAPIConfig collibraAPIConfig;
 
+    @Mock
+    CollibraValidatorService collibraValidatorService;
+
     @InjectMocks
     CollibraService collibraService;
+
+    @Test
+    void validateOK() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor.yaml");
+
+        when(collibraValidatorService.validate(any(DataProduct.class))).thenReturn(Optional.empty());
+
+        var expected = new ValidationResult(true);
+        var actual = collibraService.validate(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString));
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void validateError() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor_malformed.yaml");
+
+        var actual = collibraService.validate(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString));
+
+        assertFalse(actual.getValid());
+        assertTrue(actual.getError().isPresent());
+        actual.getError()
+                .get()
+                .getErrors()
+                .forEach(p -> Assertions.assertTrue(p.startsWith("Failed to deserialize the Yaml Descriptor.")));
+    }
+
+    @Test
+    void validateErrorOnValidator() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor.yaml");
+
+        var error = new FailedOperation(Collections.singletonList(new Problem("Error!")));
+
+        when(collibraValidatorService.validate(any(DataProduct.class))).thenReturn(Optional.of(error));
+
+        var actual = collibraService.validate(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString));
+
+        assertFalse(actual.getValid());
+        assertTrue(actual.getError().isPresent());
+        actual.getError().get().getErrors().forEach(p -> Assertions.assertEquals("Error!", p));
+    }
+
+    @Test
+    void provisionOK() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor.yaml");
+
+        when(collibraValidatorService.validate(any(DataProduct.class))).thenReturn(Optional.empty());
+        when(collibraApiClient.upsertDataProduct(any(DataProduct.class)))
+                .thenReturn(new Asset().id(UUID.fromString("12345678-1234-1234-1234-1234567890ab")));
+        when(collibraAPIConfig.endpoint()).thenReturn("https://my-collibra-instance.collibra.com");
+
+        var expectedInfo = Map.of(
+                "urn:dmb:cmp:finance:test-collibra:0:collibra-output-port",
+                Map.of(
+                        "collibra",
+                        Map.of(
+                                "type", "string",
+                                "label", "Data Catalog",
+                                "value", "View on Collibra",
+                                "href",
+                                        "https://my-collibra-instance.collibra.com/asset/12345678-1234-1234-1234-1234567890ab")));
+        var actual = collibraService.provision(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString));
+
+        assertEquals(ProvisioningStatus.StatusEnum.COMPLETED, actual.getStatus());
+        assertTrue(actual.getInfo().isPresent());
+        assertEquals(expectedInfo, actual.getInfo().get().getPublicInfo());
+    }
+
+    @Test
+    void provisionError() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor.yaml");
+
+        var error = new DataCatalogPluginProvisioningException(
+                "Error while provisioning", new FailedOperation(Collections.singletonList(new Problem("Error!"))));
+
+        when(collibraValidatorService.validate(any(DataProduct.class))).thenReturn(Optional.empty());
+        when(collibraApiClient.upsertDataProduct(any(DataProduct.class))).thenThrow(error);
+
+        var actual = assertThrows(
+                DataCatalogPluginProvisioningException.class,
+                () -> collibraService.provision(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString)));
+        assertEquals(
+                "Error while provisioning data product on Collibra catalog. See error details for more information",
+                actual.getMessage());
+        assertEquals(actual.getCause(), error);
+    }
+
+    @Test
+    void unprovisionOK() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor.yaml");
+
+        when(collibraValidatorService.validate(any(DataProduct.class))).thenReturn(Optional.empty());
+        doNothing().when(collibraApiClient).deleteDataProduct(any(DataProduct.class));
+        var actual = collibraService.unprovision(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString));
+
+        assertEquals(ProvisioningStatus.StatusEnum.COMPLETED, actual.getStatus());
+    }
+
+    @Test
+    void unprovisionError() throws IOException {
+        var yamlString = ResourceUtils.getContentFromResource("/descriptor.yaml");
+
+        var error = new DataCatalogPluginProvisioningException(
+                "Error while unprovisioning", new FailedOperation(Collections.singletonList(new Problem("Error!"))));
+
+        when(collibraValidatorService.validate(any(DataProduct.class))).thenReturn(Optional.empty());
+        doThrow(error).when(collibraApiClient).deleteDataProduct(any(DataProduct.class));
+        var actual = assertThrows(
+                DataCatalogPluginProvisioningException.class,
+                () -> collibraService.unprovision(new ProvisioningRequest(DescriptorKind.DESCRIPTOR, yamlString)));
+        assertEquals(
+                "Error while unprovisioning data product on Collibra catalog. See error details for more information",
+                actual.getMessage());
+        assertEquals(actual.getCause(), error);
+    }
 
     @Test
     void getBusinessTermsOKWithoutFilters() {
@@ -126,18 +246,9 @@ class CollibraServiceTest {
                 Option.some(new CustomURLPickerResourcesRequestBody().domain("domain:my-domain")));
         when(collibraApiClient.findDomainByName("domain:my-domain")).thenReturn(Optional.empty());
 
-        var actual = assertThrows(
-                BusinessTermsPickerRetrieveException.class, () -> collibraService.getBusinessTerms(request));
-        assertEquals(
-                "Error while retrieving Collibra business terms. See error details for more information",
-                actual.getMessage());
-        actual.getFailedOperation().problems().forEach(p -> {
-            Assertions.assertTrue(
-                    p.description()
-                            .startsWith(
-                                    "Couldn't find domain with name 'domain:my-domain' on the configured Collibra environment"));
-            Assertions.assertTrue(p.cause().isEmpty());
-        });
+        var actual = collibraService.getBusinessTerms(request);
+
+        Assertions.assertTrue(actual.isEmpty());
     }
 
     @Test

@@ -23,6 +23,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.client.HttpClientErrorException;
 
 @ExtendWith(MockitoExtension.class)
 class DataProductCollibraApiClientTest {
@@ -148,14 +150,8 @@ class DataProductCollibraApiClientTest {
                 .when(relationsApiClient.findRelations(0, 1000, null, outputPortAssetId, null, null))
                 .thenReturn(new RelationPagedResponse()
                         .addResultsItem(new Relation().target(new NamedResourceReference().id(columnAssetId))));
-        // remove OP relations
-        doNothing().when(relationsApiClient).removeRelation1(any());
-        // remove columns
-        doNothing().when(assetsApiClient).removeAsset(any());
-        // remove DP relation
-        // see above mock
-        // remove OP
-        // see above mock
+        // remove assets
+        doNothing().when(assetsApiClient).removeAssets(List.of(outputPortAssetId, columnAssetId));
 
         // create OutputPorts
         var outputPort = dataProduct.extractOutputPorts().get(0);
@@ -248,5 +244,43 @@ class DataProductCollibraApiClientTest {
                 .thenReturn(new Relation().target(new NamedResourceReference().id(columnAssetId)));
 
         assertDoesNotThrow(() -> client.upsertDataProduct(dataProduct));
+    }
+
+    @Test
+    void deleteDataProduct() throws IOException {
+        var dataProduct = Parser.parseDataProduct(ResourceUtils.getContentFromResource("/descriptor.yaml"))
+                .get();
+
+        // Search for asset
+        var dataProductId = UUID.fromString("12345678-1234-1234-1234-1234567890ab");
+        var expectedDPAsset = new Asset().name(dataProduct.getName()).id(dataProductId);
+        when(assetsApiClient.findAssets(
+                        0, 10, dataProduct.getId(), "EXACT", null, null, null, null, null, null, null, null, null))
+                .thenReturn(new AssetPagedResponse().addResultsItem(expectedDPAsset));
+
+        // remove output ports
+        // find DP relations
+        var outputPortAssetId = UUID.fromString("01010101-1234-1234-1234-1234567890ab");
+        var columnAssetId = UUID.fromString("9999999-1234-1234-1234-1234567890ab");
+        lenient()
+                .when(relationsApiClient.findRelations(
+                        0, 1000, UUID.fromString("00000000-0000-0000-0000-000000007017"), dataProductId, null, null))
+                .thenReturn(new RelationPagedResponse()
+                        .addResultsItem(new Relation().target(new NamedResourceReference().id(outputPortAssetId))));
+        // find OP relations
+        lenient()
+                .when(relationsApiClient.findRelations(0, 1000, null, outputPortAssetId, null, null))
+                .thenReturn(new RelationPagedResponse()
+                        .addResultsItem(new Relation().target(new NamedResourceReference().id(columnAssetId))));
+        // remove assets. Test 404 error
+        lenient()
+                .doThrow(new HttpClientErrorException(HttpStatusCode.valueOf(404)))
+                .when(assetsApiClient)
+                .removeAssets(List.of(outputPortAssetId, columnAssetId));
+
+        // remove data product
+        lenient().doNothing().when(assetsApiClient).removeAssets(List.of(dataProductId));
+
+        assertDoesNotThrow(() -> client.removeDataProduct(dataProduct));
     }
 }
