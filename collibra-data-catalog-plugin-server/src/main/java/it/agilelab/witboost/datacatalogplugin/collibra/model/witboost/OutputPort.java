@@ -29,4 +29,10 @@ public class OutputPort<T> extends Component<T> {
     private List<Tag> tags = List.of();
     private Optional<JsonNode> sampleData;
     private Optional<JsonNode> semanticLinking;
+
+    @Override
+    public void setRawComponent(JsonNode rawComponent) {
+        super.setRawComponent(rawComponent);
+        this.dataContract.setRawDataContract(rawComponent.get("dataContract"));
+    }
 }

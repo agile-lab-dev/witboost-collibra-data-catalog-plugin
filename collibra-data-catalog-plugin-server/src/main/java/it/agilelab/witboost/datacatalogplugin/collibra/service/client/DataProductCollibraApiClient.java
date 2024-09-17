@@ -1,6 +1,5 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.service.client;
 
-import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.api.AssetsApi;
 import it.agilelab.witboost.datacatalogplugin.collibra.client.api.AttributesApi;
@@ -12,6 +11,7 @@ import it.agilelab.witboost.datacatalogplugin.collibra.common.Problem;
 import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.*;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.Tag;
+import it.agilelab.witboost.datacatalogplugin.collibra.service.CollibraAttributeMapper;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpClientErrorException;
 
-public class DataProductCollibraApiClient {
+public class DataProductCollibraApiClient implements CollibraAttributeMapper {
 
     private final CollibraConfig collibraConfig;
     private final AssetsApi assetsApiClient;
@@ -123,10 +123,11 @@ public class DataProductCollibraApiClient {
         var attributeIds = attributes.stream().map(Attribute::getId).collect(Collectors.toList());
         attributesApiClient.removeAttributes(attributeIds);
 
-        var descriptionAttributeTypeId = UUID.fromString(
-                collibraConfig.assets().dataProduct().attributes().description());
-        List<Tuple2<UUID, String>> newAttributes =
-                List.of(Tuple.of(descriptionAttributeTypeId, dataProduct.getDescription()));
+        logger.info("Retrieving attributes configuration and mapping them to data product values");
+        logger.debug(
+                "Data product attributes: {}",
+                collibraConfig.assets().dataProduct().attributes());
+        List<Tuple2<UUID, String>> newAttributes = mapDataProductAttributes(collibraConfig, dataProduct);
 
         logger.debug("Adding attributes {} to Asset '{}'", newAttributes, id);
         newAttributes.stream()
@@ -300,15 +301,13 @@ public class DataProductCollibraApiClient {
         var attributeIds = attributes.stream().map(Attribute::getId).collect(Collectors.toList());
         attributesApiClient.removeAttributes(attributeIds);
 
-        var descriptionAttributeTypeId = UUID.fromString(
-                collibraConfig.assets().outputPort().attributes().description());
-        var tableTypeAttributeTypeId = UUID.fromString(
-                collibraConfig.assets().outputPort().attributes().tableType());
-        List<Tuple2<UUID, String>> newAttributes = List.of(
-                Tuple.of(descriptionAttributeTypeId, outputPort.getDescription()),
-                Tuple.of(tableTypeAttributeTypeId, outputPort.getOutputPortType()));
-        logger.debug("Adding attributes {} to Asset '{}'", newAttributes, id);
+        logger.info("Retrieving attributes configuration and mapping them to output port values");
+        logger.debug(
+                "Output port attributes: {}",
+                collibraConfig.assets().outputPort().attributes());
+        List<Tuple2<UUID, String>> newAttributes = mapOutputPortAttributes(collibraConfig, outputPort);
 
+        logger.debug("Adding attributes {} to Asset '{}'", newAttributes, id);
         newAttributes.stream()
                 .map(newAttribute -> new AddAttributeRequest()
                         .assetId(id)
@@ -319,7 +318,7 @@ public class DataProductCollibraApiClient {
     }
 
     private void updateColumnAttributes(UUID id, Column column) {
-        logger.info("Updating attributes and tags on Data Product Asset '{}'", id);
+        logger.info("Updating attributes and tags on Column Asset '{}'", id);
 
         var tags = column.getTags().stream().map(Tag::getTagFQN).toList();
         if (!tags.isEmpty()) {
@@ -334,13 +333,9 @@ public class DataProductCollibraApiClient {
         var attributeIds = attributes.stream().map(Attribute::getId).collect(Collectors.toList());
         attributesApiClient.removeAttributes(attributeIds);
 
-        var descriptionAttributeTypeId =
-                UUID.fromString(collibraConfig.assets().column().attributes().description());
-        var tableTypeAttributeTypeId =
-                UUID.fromString(collibraConfig.assets().column().attributes().dataType());
-        List<Tuple2<UUID, String>> newAttributes = List.of(
-                Tuple.of(descriptionAttributeTypeId, column.getDescription()),
-                Tuple.of(tableTypeAttributeTypeId, column.getDataType()));
+        logger.info("Retrieving attributes configuration and mapping them to column values");
+        logger.debug("Column attributes: {}", collibraConfig.assets().column().attributes());
+        List<Tuple2<UUID, String>> newAttributes = mapColumnAttributes(collibraConfig, column);
 
         logger.debug("Adding attributes {} to Asset '{}'", newAttributes, id);
         newAttributes.stream()

@@ -2,10 +2,12 @@ package it.agilelab.witboost.datacatalogplugin.collibra.model.witboost;
 
 import static it.agilelab.witboost.datacatalogplugin.collibra.common.Constants.OUTPUTPORT_KIND;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
+import it.agilelab.witboost.datacatalogplugin.collibra.parser.JsonPathUtils;
 import it.agilelab.witboost.datacatalogplugin.collibra.parser.Parser;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +40,9 @@ public class DataProduct {
     private JsonNode specific;
     private List<JsonNode> components;
 
+    @JsonIgnore
+    private JsonNode rawDataProduct;
+
     public Option<JsonNode> getComponentToProvision(String componentId) {
         return Option.ofOptional(Optional.ofNullable(componentId).flatMap(comp -> components.stream()
                 .filter(c -> comp.equals(c.get("id").textValue()))
@@ -45,11 +50,9 @@ public class DataProduct {
     }
 
     public Option<String> getComponentKindToProvision(String componentId) {
-        return Option.ofOptional(Optional.ofNullable(componentId).flatMap(comp -> components.stream()
-                .filter(c -> comp.equals(c.get("id").textValue()))
-                .findFirst()
-                .flatMap(c -> Optional.ofNullable(c.get("kind")))
-                .map(JsonNode::textValue)));
+        return getComponentToProvision(componentId)
+                .flatMap(c -> Option.of(c.get("kind")))
+                .map(JsonNode::textValue);
     }
 
     public List<OutputPort<Specific>> extractOutputPorts() {
@@ -62,5 +65,9 @@ public class DataProduct {
                 .map(Either::get)
                 .map(x -> (OutputPort<Specific>) x)
                 .toList();
+    }
+
+    public String getStringFromJsonPath(String jsonPath) {
+        return JsonPathUtils.getStringFromJsonPath(this.rawDataProduct, jsonPath);
     }
 }

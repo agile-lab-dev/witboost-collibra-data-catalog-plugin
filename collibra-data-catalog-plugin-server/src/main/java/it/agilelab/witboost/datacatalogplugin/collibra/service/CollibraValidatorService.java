@@ -1,8 +1,12 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.service;
 
+import it.agilelab.witboost.datacatalogplugin.collibra.common.DataCatalogPluginValidationException;
 import it.agilelab.witboost.datacatalogplugin.collibra.common.FailedOperation;
 import it.agilelab.witboost.datacatalogplugin.collibra.common.Problem;
+import it.agilelab.witboost.datacatalogplugin.collibra.config.CollibraConfig;
 import it.agilelab.witboost.datacatalogplugin.collibra.model.witboost.DataProduct;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -10,9 +14,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
-public class CollibraValidatorService implements ValidatorService {
+public class CollibraValidatorService implements ValidatorService, CollibraAttributeMapper {
 
     private static final Logger logger = LoggerFactory.getLogger(CollibraValidatorService.class);
+
+    private final CollibraConfig collibraConfig;
+
+    public CollibraValidatorService(CollibraConfig collibraConfig) {
+        this.collibraConfig = collibraConfig;
+    }
 
     @Override
     public Optional<FailedOperation> validate(DataProduct dataProduct) {
@@ -38,6 +48,47 @@ public class CollibraValidatorService implements ValidatorService {
             logger.error("{} tags have whitespace on them: {}", spacedTags.size(), spacedTags);
             return Optional.of(new FailedOperation(spacedTags));
         }
+
+        List<Problem> attributeMappingProblems = new ArrayList<>();
+        logger.info("Validating data product, output port, and column attribute mapping");
+        try {
+            mapDataProductAttributes(collibraConfig, dataProduct);
+        } catch (DataCatalogPluginValidationException ex) {
+            logger.error("Error on validating data product attribute mapping", ex);
+            attributeMappingProblems.addAll(ex.getFailedOperation().problems());
+        }
+
+        dataProduct.extractOutputPorts().forEach(outputPort -> {
+            try {
+                mapOutputPortAttributes(collibraConfig, outputPort);
+            } catch (DataCatalogPluginValidationException ex) {
+                logger.error(
+                        String.format("Error on validating output port '%s' attribute mapping", outputPort.getId()),
+                        ex);
+                attributeMappingProblems.addAll(ex.getFailedOperation().problems());
+            }
+            outputPort.getDataContract().getSchema().forEach(column -> {
+                try {
+                    mapColumnAttributes(collibraConfig, column);
+                } catch (DataCatalogPluginValidationException ex) {
+                    logger.error(
+                            String.format(
+                                    "Error on validating column '%s' of output port '%s' attribute mapping",
+                                    column.getName(), outputPort.getId()),
+                            ex);
+                    attributeMappingProblems.addAll(ex.getFailedOperation().problems());
+                }
+            });
+        });
+
+        if (!attributeMappingProblems.isEmpty()) {
+            logger.error(
+                    "{} attributes were not able to be mapped: {}",
+                    attributeMappingProblems.size(),
+                    attributeMappingProblems);
+            return Optional.of(new FailedOperation(attributeMappingProblems));
+        }
+
         logger.info("Data Product validation OK");
         return Optional.empty();
     }

@@ -26,7 +26,11 @@ public class Parser {
     }
 
     public static Either<FailedOperation, DataProduct> parseDataProduct(String yamlDescriptor) {
-        return Try.of(() -> om.readValue(yamlDescriptor, DataProduct.class))
+        return Try.of(() -> {
+                    var dataProduct = om.readValue(yamlDescriptor, DataProduct.class);
+                    dataProduct.setRawDataProduct(om.readTree(yamlDescriptor));
+                    return dataProduct;
+                })
                 .toEither()
                 .mapLeft(t -> {
                     String errorMessage = "Failed to deserialize the Yaml Descriptor. Details: " + t.getMessage();
@@ -38,7 +42,9 @@ public class Parser {
     public static <U> Either<FailedOperation, Component<U>> parseComponent(JsonNode node, Class<U> specificClass) {
         return Try.of(() -> {
                     JavaType javaType = om.getTypeFactory().constructParametricType(Component.class, specificClass);
-                    return om.<Component<U>>readValue(node.toString(), javaType);
+                    var component = om.<Component<U>>readValue(node.toString(), javaType);
+                    component.setRawComponent(node);
+                    return component;
                 })
                 .toEither()
                 .mapLeft(t -> {

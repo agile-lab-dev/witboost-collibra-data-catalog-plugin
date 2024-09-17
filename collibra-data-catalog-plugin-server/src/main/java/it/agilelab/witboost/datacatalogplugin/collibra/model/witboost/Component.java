@@ -1,8 +1,11 @@
 package it.agilelab.witboost.datacatalogplugin.collibra.model.witboost;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.JsonNode;
+import it.agilelab.witboost.datacatalogplugin.collibra.parser.JsonPathUtils;
 import java.util.Optional;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,10 +24,16 @@ import lombok.Setter;
 })
 public abstract class Component<T> {
 
-    private String id;
-    private String name;
-    private Optional<String> fullyQualifiedName;
-    private String description;
-    private String kind;
-    // private T specific;
+    protected String id;
+    protected String name;
+    protected Optional<String> fullyQualifiedName;
+    protected String description;
+    protected String kind;
+
+    @JsonIgnore
+    protected JsonNode rawComponent;
+
+    public String getStringFromJsonPath(String jsonPath) {
+        return JsonPathUtils.getStringFromJsonPath(this.rawComponent, jsonPath);
+    }
 }

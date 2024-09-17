@@ -143,7 +143,7 @@ export PROVISIONER_VERSION=$(date +%Y%m%d-%H%M%S);
 
 ## Configuring
 
-Configuration is handled via Spring Boot `application.yaml` file. Check [Configuration](./docs/configuration.md) for more information.
+Configuration is handled via Spring Boot `application.yaml` file. It allows setting custom domain and asset types for the provisioned descriptors, as well as the set of relation types and attributes related to each asset. Check [Configuration](./docs/configuration.md) for more information.
 
 ## Running
 
