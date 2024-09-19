@@ -40,6 +40,7 @@ setup:
 
 sast:
   stage: setup
+  cache: []
   artifacts:
     paths:
       - gl-sast-report.json
@@ -48,6 +49,7 @@ sast:
 
 secret_detection:
   stage: setup
+  cache: []
   artifacts:
     paths:
       - gl-secret-detection-report.json
@@ -86,22 +88,23 @@ vulnerability_analysis:
   before_script:
     - mvn --version
   script:
-    - mvn package org.owasp:dependency-check-maven:check
+    - mvn -DskipTests=true package org.owasp:dependency-check-maven:check
   artifacts:
     when: always
     paths:
-      - target/dependency-check-report.html
+      - report/target/dependency-check-report.html
 
 license_check:
   stage: compile
   before_script:
     - mvn --version
   script:
-    - mvn package licensescan:audit
+    - mvn -DskipTests=true package licensescan:audit
   artifacts:
     when: always
     paths:
-      - target/license-scan-results/index.html
+      - collibra-data-catalog-plugin-server/target/license-scan-results/index.html
+      - collibra-data-catalog-plugin-server/target/license-scan-results/license-scan-report.json
 
 linter:
   stage: compile
